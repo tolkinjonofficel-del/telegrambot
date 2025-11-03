@@ -1,7 +1,7 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // 🔑 BOT TOKEN
-const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
+const token = process.env.BOT_TOKEN || "7454675594:AAFM2PQr8FX5KpbK_3k5z3kDYBtkFrBhJwo";
 // 👑 ADMIN CHAT ID — o'zingizning Telegram ID'ingizni yozing
 const ADMIN_CHAT_ID = 7081746531;
 
