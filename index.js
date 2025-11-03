@@ -1,22 +1,27 @@
 const TelegramBot = require("node-telegram-bot-api");
+const fs = require("fs");
 
-// Railway yoki lokal uchun tokenni o'zgartirmasdan ishlatish
-const token = process.env.BOT_TOKEN || "8114630640:AAE-VrMOvoe8M3IvlfNVU4Ge9IytJVbFZVA"; 
-
-// polling: true -> botni doimiy ishlatadi
+// Railway uchun token
+const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
 const bot = new TelegramBot(token, { polling: true });
 
-console.log("✅ Strategik Bot ishga tushdi...");
+console.log("✅ Strategiya bot ishga tushdi...");
 
-// Start komandasi
+
+// === 1️⃣ /start komandasi ===
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
   const message = `
-🎯 <b>Strategik bot bilan har kuni yangi yutuqlar!</b>
+✨ <b>Xush kelibsiz! O'yin strategiyalari botiga! ✨</b>
 
-Har kuni ishonchli strategiyalar bilan yutib oling 💰
-Tanlang — o‘zingizga yoqqan platforma 👇
+🎮 <b>Bot imkoniyatlari:</b>
+• 🎯 Ishonchli platformalar  
+• 💰 Samarali strategiyalar  
+• 🚀 Tez daromad olish  
+• 📊 Professional ko'rsatkichlar  
+
+💎 Pul ko'paytirish uchun kerakli platformani tanlang:
 `;
 
   const options = {
@@ -24,15 +29,20 @@ Tanlang — o‘zingizga yoqqan platforma 👇
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "💎 1xBet", url: "https://1xbet.com" },
-          { text: "🔥 WinWin", url: "https://winwin.uz" }
+          { text: "💎 1xBet", callback_data: "1xbet" },
+          { text: "🔥 Melbet", callback_data: "melbet" }
         ],
         [
-          { text: "⚽ MelBet", url: "https://melbet.com" },
-          { text: "🏆 DBbet", url: "https://dbbet.com" }
+          { text: "⚡ WinWin", callback_data: "winwin" },
+          { text: "🏆 DBbet", callback_data: "dbbet" }
         ],
         [
-          { text: "💰 MegaPari", url: "https://megapari.com" }
+          { text: "💰 MegaPari", callback_data: "megapari" },
+          { text: "⭐ 888Starz", callback_data: "888starz" }
+        ],
+        [
+          { text: "🎯 LuckyPati", callback_data: "luckypati" },
+          { text: "👑 GoldPari", callback_data: "goldpari" }
         ]
       ]
     }
@@ -41,12 +51,77 @@ Tanlang — o‘zingizga yoqqan platforma 👇
   bot.sendMessage(chatId, message, options);
 });
 
-// Default javob
-bot.on("message", (msg) => {
-  if (!msg.text.startsWith("/start")) {
-    bot.sendMessage(
-      msg.chat.id,
-      "⚡ /start buyrug‘ini yuboring va bugungi strategiyalarni ko‘ring!"
-    );
+
+// === 2️⃣ Platforma tanlanganda ===
+bot.on("callback_query", async (query) => {
+  const chatId = query.message.chat.id;
+  const platform = query.data;
+
+  const platformNames = {
+    "1xbet": "1xBet",
+    "melbet": "MelBet",
+    "winwin": "WinWin",
+    "dbbet": "DBbet",
+    "megapari": "MegaPari",
+    "888starz": "888Starz",
+    "luckypati": "LuckyPati",
+    "goldpari": "GoldPari"
+  };
+
+  const platformName = platformNames[platform];
+
+  // Har bir platforma uchun rasm va APK fayl
+  const imagePath = `./images/${platform}.jpg`;
+  const apkPath = `./apks/${platform}.apk`;
+
+  let caption = `
+*🎰 ${platformName} platformasi tanlandi!* ✅
+
+Royhatdan o'tish uchun:
+📱 Android: APK faylni yuklab oling
+📱 iPhone: Havola tez orada joylanadi  
+
+Botni faollashtirish uchun <b>"AIFUT"</b> promokodini yozing va uni ro'yhatdan o'tishda kiriting! 👆✅
+`;
+
+  if (fs.existsSync(imagePath)) {
+    await bot.sendPhoto(chatId, imagePath, { caption, parse_mode: "HTML" });
+  } else {
+    await bot.sendMessage(chatId, caption, { parse_mode: "HTML" });
   }
+
+  if (fs.existsSync(apkPath)) {
+    await bot.sendDocument(chatId, apkPath, {
+      caption: `📱 ${platformName} uchun Android APK fayl`
+    });
+  } else {
+    await bot.sendMessage(chatId, "⚠️ APK fayl hali joylanmagan.");
+  }
+
+  // O'yinlar tanlash
+  await bot.sendMessage(chatId, `
+💰 <b>Daromad olish uchun qaysi o'yinni o'ynashni tanlaysiz?</b>
+
+📊 <b>${platformName} haqida:</b>
+• 🎯 Ishonchlilik: 98%
+• ⚡ Tezkorlik: A+
+• 💰 Bonus: 150% gacha
+• 📱 Qulaylik: Mobil optimallashtirilgan  
+
+❗️ AIFUT promokodini ro'yhatdan o'tishda kiriting — shunda aniq signallar olasiz.
+`, {
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
+          { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" }
+        ],
+        [
+          { text: "⚽ Penalty", url: "https://t.me/AiFUTbot" },
+          { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
+        ]
+      ]
+    }
+  });
 });
