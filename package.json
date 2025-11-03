@@ -1,7 +1,7 @@
 {
-  "name": "strategik-bot",
+  "name": "strategiya-bot",
   "version": "1.0.0",
-  "description": "Strategik bot bilan har kuni yutuqlar!",
+  "description": "O'yin strategiyalari Telegram boti",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
