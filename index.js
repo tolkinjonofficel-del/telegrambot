@@ -1,11 +1,10 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-// 🔑 BOT TOKEN — o'zingizning tokenni qo'ying yoki Railway orqali kiriting
+// 🔑 Bot token (BotFather’dan olingan tokenni yozing yoki Railway orqali qo‘ying)
 const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
 const bot = new TelegramBot(token, { polling: true });
 
-console.log("✅ Strategiya bot ishga tushdi...");
-
+console.log("✅ Strategik bot ishga tushdi...");
 
 // === /start komandasi ===
 bot.onText(/\/start/, (msg) => {
@@ -50,8 +49,7 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(chatId, message, options);
 });
 
-
-// === Callback (platforma tanlanganda) ===
+// === Platforma tanlanganda ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -68,7 +66,7 @@ bot.on("callback_query", async (query) => {
   };
 
   const platformName = platformNames[data];
-  const imageUrl = "blob:https://web.telegram.org/e8083033-ed72-4096-b3d6-b29a7e393f74";
+  const imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
   const apkUrl = "https://t.me/upaymeuz/3542";
 
   const caption = `
@@ -87,6 +85,22 @@ bot.on("callback_query", async (query) => {
     await bot.sendPhoto(chatId, imageUrl, {
       caption,
       parse_mode: "HTML"
+    });
+
+    // O'yin tanlash menyusi
+    await bot.sendMessage(chatId, `
+🎰 <b>Daromad olish uchun o'yinni tanlang:</b>
+`, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" },
+            { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
+            { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
+          ]
+        ]
+      }
     });
   } catch (error) {
     console.error("❌ Rasmni yuborishda xato:", error);
