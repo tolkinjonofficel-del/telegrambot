@@ -1,23 +1,23 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-// 🔑 Bot token (BotFather’dan olingan tokenni yozing yoki Railway orqali qo‘ying)
+// 🧩 Bot tokeningiz (BotFather’dan olingan tokenni qo‘ying)
 const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
 const bot = new TelegramBot(token, { polling: true });
 
-console.log("✅ Strategik bot ishga tushdi...");
+console.log("✅ Strategik o'yinlar boti ishga tushdi...");
 
 // === /start komandasi ===
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
   const message = `
-✨ <b>Xush kelibsiz! O'yin strategiyalari botiga!</b> ✨
+✨ <b>Xush kelibsiz! Strategik o'yinlar botiga!</b> ✨  
 
 🎮 <b>Bot imkoniyatlari:</b>
-• 🎯 Ishonchli platformalar  
-• 💰 Samarali strategiyalar  
-• 🚀 Tez daromad olish  
-• 📊 Professional ko'rsatkichlar  
+• 🎯 Ishonchli o'yin platformalar  
+• 💰 Sinovdan o'tgan strategiyalar  
+• 🚀 Har kuni barqaror daromad  
+• 📊 Professional yondashuv va foyda tahlili  
 
 💎 <b>Pul ko'paytirish uchun kerakli platformani tanlang:</b>
 `;
@@ -49,6 +49,7 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(chatId, message, options);
 });
 
+
 // === Platforma tanlanganda ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
@@ -70,40 +71,58 @@ bot.on("callback_query", async (query) => {
   const apkUrl = "https://t.me/upaymeuz/3542";
 
   const caption = `
-🎯 <b>${platformName}</b> o'yin platformasini tanladingiz!
+🎯 <b>${platformName}</b> o'yin platformasini tanladingiz!  
 
-💸 <b>Strategik game bilan doimo daromad qiling!</b>
+💸 <b>Strategik game bilan doimo daromad qiling!</b>  
+Rasmda ko‘rsatilganday promokodni kiriting va ro‘yxatdan o‘ting.  
 
-📲 Rasmda ko‘rsatilganday promokodni yozing va ro‘yxatdan o‘ting.  
-✅ To‘liq ro‘yxatdan o‘tib 200% bonusga ega bo‘ling!
+💥 To‘liq ro‘yxatdan o‘tgan foydalanuvchilar uchun — <b>200% bonus!</b> 🎁  
 
-⬇️ <b>${platformName}</b> APK faylini yuklab oling yoki ushbu havola orqali ro‘yxatdan o‘ting:
-👉 <a href="${apkUrl}">${apkUrl}</a>
+📲 Quyidagi havoladan <b>${platformName}</b> APK faylini yuklab oling:  
+<a href="${apkUrl}">📦 ${platformName} APK faylini yuklab olish</a>
 `;
 
   try {
+    // Rasm bilan birga xabar yuborish
     await bot.sendPhoto(chatId, imageUrl, {
       caption,
       parse_mode: "HTML"
     });
 
-    // O'yin tanlash menyusi
+    // Shu bilan birga APK fayl ham yuboriladi (rasm ostida)
+    await bot.sendDocument(chatId, apkUrl, {
+      caption: `📥 ${platformName} uchun APK fayl`,
+      parse_mode: "HTML"
+    });
+
+    // Keyingi bosqich — o'yinlar ro'yxati
     await bot.sendMessage(chatId, `
-🎰 <b>Daromad olish uchun o'yinni tanlang:</b>
+🎰 <b>Daromad olish uchun o'yinni tanlang:</b>  
+Har bir o'yin sizga strategiya asosida aniq natija va g‘alaba olib keladi 💪  
 `, {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" },
             { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
+            { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" }
+          ],
+          [
+            { text: "⚽ Penalty", url: "https://t.me/AiFUTbot" },
             { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
+          ],
+          [
+            { text: "🐸 Swamp Lamp", url: "https://t.me/AiFUTbot" },
+            { text: "🧞‍♂️ Aladin Chirogi", url: "https://t.me/AiFUTbot" }
+          ],
+          [
+            { text: "💎 Cristal", url: "https://t.me/AiFUTbot" }
           ]
         ]
       }
     });
   } catch (error) {
-    console.error("❌ Rasmni yuborishda xato:", error);
+    console.error("❌ Rasm yoki faylni yuborishda xato:", error);
     await bot.sendMessage(chatId, caption, { parse_mode: "HTML" });
   }
 });
