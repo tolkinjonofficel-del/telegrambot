@@ -1,7 +1,7 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // Railway yoki lokal token (BotFather’dan olingan)
-const token = process.env.BOT_TOKEN || "BU_YERGA_TOKEN_YOZILADI";
+const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
 const bot = new TelegramBot(token, { polling: true });
 
 console.log("✅ Strategiya sinov bot ishga tushdi...");
