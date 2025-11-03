@@ -1,12 +1,13 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-// Railway yoki lokal token (BotFather’dan olingan)
+// 🔑 BOT TOKEN — o'zingizning tokenni qo'ying yoki Railway orqali kiriting
 const token = process.env.BOT_TOKEN || "8320792971:AAG6APrNu2wJgYSJreRPYkGjpt3o5JEeWYM";
 const bot = new TelegramBot(token, { polling: true });
 
-console.log("✅ Strategiya sinov bot ishga tushdi...");
+console.log("✅ Strategiya bot ishga tushdi...");
 
-// --- /start komandasi ---
+
+// === /start komandasi ===
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
@@ -19,7 +20,7 @@ bot.onText(/\/start/, (msg) => {
 • 🚀 Tez daromad olish  
 • 📊 Professional ko'rsatkichlar  
 
-💎 Pul ko'paytirish uchun kerakli platformani tanlang:
+💎 <b>Pul ko'paytirish uchun kerakli platformani tanlang:</b>
 `;
 
   const options = {
@@ -27,7 +28,20 @@ bot.onText(/\/start/, (msg) => {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "💎 1xBet", callback_data: "1xbet" }
+          { text: "💎 1Xbet", callback_data: "1xbet" },
+          { text: "🏆 DBbet", callback_data: "dbbet" }
+        ],
+        [
+          { text: "🔥 Melbet", callback_data: "melbet" },
+          { text: "⚡ Winwin", callback_data: "winwin" }
+        ],
+        [
+          { text: "⭐ 888Starz", callback_data: "888starz" },
+          { text: "💰 Megapari", callback_data: "megapari" }
+        ],
+        [
+          { text: "🎯 Lyukypari", callback_data: "lyukypari" },
+          { text: "👑 Goldpari", callback_data: "goldpari" }
         ]
       ]
     }
@@ -37,56 +51,45 @@ bot.onText(/\/start/, (msg) => {
 });
 
 
-// --- 1xBet tugmasi bosilganda ---
+// === Callback (platforma tanlanganda) ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
-  if (data === "1xbet") {
-    const imageUrl = "https://t.me/insayderAI/665";
-    const apkUrl = "https://t.me/upaymeuz/3542";
+  const platformNames = {
+    "1xbet": "1Xbet",
+    "dbbet": "DBbet",
+    "melbet": "Melbet",
+    "winwin": "Winwin",
+    "888starz": "888Starz",
+    "megapari": "Megapari",
+    "lyukypari": "Lyukypari",
+    "goldpari": "Goldpari"
+  };
 
-    const caption = `
-*🎰 1xBet platformasi tanlandi!* ✅
+  const platformName = platformNames[data];
+  const imageUrl = "blob:https://web.telegram.org/e8083033-ed72-4096-b3d6-b29a7e393f74";
+  const apkUrl = "https://t.me/upaymeuz/3542";
 
-Royhatdan o'tish uchun:
-📱 Android: <a href="${apkUrl}">APK yuklab oling</a>  
-📱 iPhone: Havola tez orada joylanadi  
+  const caption = `
+🎯 <b>${platformName}</b> o'yin platformasini tanladingiz!
 
-Botni faollashtirish uchun <b>"AIFUT"</b> promokodini yozing va uni ro'yhatdan o'tishda kiriting! 👆✅
+💸 <b>Strategik game bilan doimo daromad qiling!</b>
+
+📲 Rasmda ko‘rsatilganday promokodni yozing va ro‘yxatdan o‘ting.  
+✅ To‘liq ro‘yxatdan o‘tib 200% bonusga ega bo‘ling!
+
+⬇️ <b>${platformName}</b> APK faylini yuklab oling yoki ushbu havola orqali ro‘yxatdan o‘ting:
+👉 <a href="${apkUrl}">${apkUrl}</a>
 `;
 
-    // Rasm yuborish
+  try {
     await bot.sendPhoto(chatId, imageUrl, {
-      caption: caption,
+      caption,
       parse_mode: "HTML"
     });
-
-    // Keyingi xabar — o'yinlar tanlash
-    await bot.sendMessage(chatId, `
-💰 <b>Daromad olish uchun qaysi o'yinni o'ynashni tanlaysiz?</b>
-
-📊 <b>1xBet haqida:</b>
-• 🎯 Ishonchlilik: 98%  
-• ⚡ Tezkorlik: A+  
-• 💰 Bonus: 150% gacha  
-• 📱 Qulaylik: Mobil optimallashtirilgan  
-
-❗️ AIFUT promokodini ro'yhatdan o'tishda kiriting — shunda aniq signallar olasiz.
-`, {
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
-            { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" }
-          ],
-          [
-            { text: "⚽ Penalty", url: "https://t.me/AiFUTbot" },
-            { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
-          ]
-        ]
-      }
-    });
+  } catch (error) {
+    console.error("❌ Rasmni yuborishda xato:", error);
+    await bot.sendMessage(chatId, caption, { parse_mode: "HTML" });
   }
 });
