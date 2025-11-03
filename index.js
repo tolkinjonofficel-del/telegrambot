@@ -1,46 +1,43 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-// 🔑 BOT TOKEN
+// 🔑 Bot token (BotFather’dan)
 const token = process.env.BOT_TOKEN || "7454675594:AAFM2PQr8FX5KpbK_3k5z3kDYBtkFrBhJwo";
-// 👑 ADMIN CHAT ID — o'zingizning Telegram ID'ingizni yozing
+// 👑 Admin ID (sizning Telegram ID'ingiz)
 const ADMIN_CHAT_ID = 7081746531;
 
 const bot = new TelegramBot(token, { polling: true });
 
-console.log("✅ Strategik o'yinlar boti ishga tushdi...");
+console.log("✅ Strategik bot ishga tushdi...");
 
-
-// === /start komandasi ===
+// === START komandasi ===
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
-  // --- 🔔 Admin uchun xabar ---
+  // 🔔 Admin uchun bildirish
   const notifyAdmin = `
 🧍‍♂️ <b>Yangi foydalanuvchi qo‘shildi!</b>
-
-👤 <b>Ism:</b> ${user.first_name || "Noma’lum"}
-🆔 <b>ID:</b> <code>${user.id}</code>
-🌐 <b>Username:</b> ${user.username ? "@" + user.username : "—"}
-📱 <b>Til:</b> ${user.language_code ? user.language_code.toUpperCase() : "—"}
+👤 Ism: ${user.first_name || "Noma’lum"}
+🆔 ID: <code>${user.id}</code>
+🌐 Username: ${user.username ? "@" + user.username : "—"}
+📱 Til: ${user.language_code ? user.language_code.toUpperCase() : "—"}
 `;
   bot.sendMessage(ADMIN_CHAT_ID, notifyAdmin, { parse_mode: "HTML" });
 
-  // --- 🎮 Foydalanuvchi uchun start xabari ---
-  const message = `
+  // 💬 Foydalanuvchiga start xabari
+  const startMessage = `
 ✨ <b>Xush kelibsiz! Strategik o'yinlar botiga!</b> ✨  
 
 🎮 <b>Bot imkoniyatlari:</b>
 • 🎯 Ishonchli platformalar  
-• 💰 Sinovdan o'tgan strategiyalar  
-• 🚀 Har kuni barqaror daromad  
-• 📊 Professional yondashuv va foyda tahlili  
+• 💰 Samarali strategiyalar  
+• 🚀 Har kuni daromad  
+• 📊 Professional tahlil  
 
-💎 <b>Pul ko'paytirish uchun kerakli platformani tanlang:</b>
+💎 <b>Pul ko‘paytirish uchun kerakli platformani tanlang:</b>
 `;
 
-  const options = {
-    parse_mode: "HTML",
+  const buttons = {
     reply_markup: {
       inline_keyboard: [
         [
@@ -60,97 +57,87 @@ bot.onText(/\/start/, (msg) => {
           { text: "👑 Goldpari", callback_data: "goldpari" }
         ]
       ]
-    }
+    },
+    parse_mode: "HTML"
   };
 
-  bot.sendMessage(chatId, message, options);
+  bot.sendMessage(chatId, startMessage, buttons);
 });
 
-
-// === Platforma tanlanganda ===
+// === PLATFORMANI TANLAGANDA ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
-  const platformNames = {
-    "1xbet": "1Xbet",
-    "dbbet": "DBbet",
-    "melbet": "Melbet",
-    "winwin": "Winwin",
-    "888starz": "888Starz",
-    "megapari": "Megapari",
-    "lyukypari": "Lyukypari",
-    "goldpari": "Goldpari"
+  const platforms = {
+    "1xbet": { name: "1Xbet", apk: "https://t.me/insayderAI/681" },
+    "dbbet": { name: "DBbet", apk: "https://t.me/insayderAI/683" },
+    "melbet": { name: "Melbet", apk: "https://t.me/insayderAI/687" },
+    "winwin": { name: "Winwin", apk: "https://t.me/insayderAI/688" },
+    "888starz": { name: "888Starz", apk: "https://t.me/insayderAI/682" },
+    "megapari": { name: "Megapari", apk: "https://t.me/insayderAI/686" },
+    "lyukypari": { name: "Lyukypari", apk: "https://t.me/insayderAI/685" },
+    "goldpari": { name: "Goldpari", apk: "https://t.me/insayderAI/684" }
   };
 
-  const apkLinks = {
-    "1xbet": "https://t.me/insayderAI/681",
-    "winwin": "https://t.me/insayderAI/688",
-    "goldpari": "https://t.me/insayderAI/684",
-    "lyukypari": "https://t.me/insayderAI/685",
-    "melbet": "https://t.me/insayderAI/687",
-    "megapari": "https://t.me/insayderAI/686",
-    "888starz": "https://t.me/insayderAI/682",
-    "dbbet": "https://t.me/insayderAI/683"
-  };
+  const imageUrl =
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
 
-  const platformName = platformNames[data];
-  const apkUrl = apkLinks[data];
-  const imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
+  const platform = platforms[data];
+  if (!platform) return;
 
   const caption = `
-🎯 <b>${platformName}</b> o'yin platformasini tanladingiz!  
+🎯 <b>${platform.name}</b> platformasi tanlandi!  
 
 💸 <b>Strategik game bilan doimo daromad qiling!</b>  
 Rasmda ko‘rsatilganday <b>AIFUT</b> promokodini kiriting va ro‘yxatdan o‘ting.  
 
 💥 To‘liq ro‘yxatdan o‘tgan foydalanuvchilar uchun — <b>200% BONUS!</b> 🎁  
-
-📲 Quyidagi havoladan <b>${platformName}</b> APK faylini yuklab oling:
-<a href="${apkUrl}">📦 ${platformName} APK faylini yuklab olish</a>
 `;
 
   try {
-    // 📸 Rasm bilan xabar
+    // 📸 Rasm
     await bot.sendPhoto(chatId, imageUrl, {
       caption,
       parse_mode: "HTML"
     });
 
-    // 📦 Fayl havolasi (fayl sifatida ko‘rinadi)
-    await bot.sendDocument(chatId, apkUrl, {
-      caption: `📥 ${platformName} uchun APK fayl`,
+    // 📦 APK fayl — Telegram fayl sifatida ko‘rinadi
+    await bot.sendDocument(chatId, platform.apk, {
+      caption: `📥 <b>${platform.name}</b> APK faylini yuklab oling va o‘rnatib ro‘yxatdan o‘ting.`,
       parse_mode: "HTML"
     });
 
-    // 🎮 O'yinlar ro'yxati
-    await bot.sendMessage(chatId, `
+    // 🎰 O‘yinlar menyusi
+    await bot.sendMessage(
+      chatId,
+      `
 🎰 <b>Daromad olish uchun o'yinni tanlang:</b>  
-Har bir o'yin — strategiya asosida aniq natija va foyda olib keladi 💪  
-`, {
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
-            { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" }
-          ],
-          [
-            { text: "⚽ Penalty", url: "https://t.me/AiFUTbot" },
-            { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
-          ],
-          [
-            { text: "🐸 Swamp Lamp", url: "https://t.me/AiFUTbot" },
-            { text: "🧞‍♂️ Aladin Chirogi", url: "https://t.me/AiFUTbot" }
-          ],
-          [
-            { text: "💎 Cristal", url: "https://t.me/AiFUTbot" }
+Har bir o'yin — strategik yondashuv bilan g‘alabaga olib keladi 💪  
+`,
+      {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "🍏 Apple of Fortune", url: "https://t.me/AiFUTbot" },
+              { text: "✈️ Aviator", url: "https://t.me/AiFUTbot" }
+            ],
+            [
+              { text: "⚽ Penalty", url: "https://t.me/AiFUTbot" },
+              { text: "🚀 JetX", url: "https://t.me/AiFUTbot" }
+            ],
+            [
+              { text: "🐸 Swamp Lamp", url: "https://t.me/AiFUTbot" },
+              { text: "🧞‍♂️ Aladin Chirogi", url: "https://t.me/AiFUTbot" }
+            ],
+            [{ text: "💎 Cristal", url: "https://t.me/AiFUTbot" }]
           ]
-        ]
+        }
       }
-    });
+    );
   } catch (error) {
     console.error("❌ Xato:", error);
-    await bot.sendMessage(chatId, caption, { parse_mode: "HTML" });
+    bot.sendMessage(chatId, "⚠️ Xatolik yuz berdi, keyinroq urinib ko‘ring.");
   }
 });
