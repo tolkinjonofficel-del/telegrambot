@@ -1,7 +1,7 @@
 {
-  "name": "strategiya-bot",
+  "name": "megapari-888starz-bot",
   "version": "1.0.0",
-  "description": "O'yin strategiyalari Telegram boti",
+  "description": "MegaPari va 888Starz strategik Telegram bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
