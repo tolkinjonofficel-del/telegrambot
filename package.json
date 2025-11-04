@@ -2,15 +2,15 @@
   "name": "strategic-games-bot",
   "version": "1.0.0",
   "description": "Telegram bot for MegaPari and 888Starz strategic games",
-  "main": "bot.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node bot.js",
-    "dev": "nodemon bot.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
