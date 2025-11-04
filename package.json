@@ -1,12 +1,16 @@
 {
-  "name": "megapari-888starz-bot",
+  "name": "strategic-games-bot",
   "version": "1.0.0",
-  "description": "MegaPari va 888Starz strategik Telegram bot",
-  "main": "index.js",
+  "description": "Telegram bot for MegaPari and 888Starz strategic games",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0"
+    "node-telegram-bot-api": "^0.64.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }
