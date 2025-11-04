@@ -180,4 +180,4 @@ bot.on("callback_query", async (query) => {
       { parse_mode: "HTML" }
     );
   }
-});by B 
+});
