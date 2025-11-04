@@ -1,9 +1,9 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-// 🔑 TOKEN — o'zingizning tokeningizni yozing yoki Railway'da Environment Variable sifatida kiriting
-const token = process.env.BOT_TOKEN || "7454675594:AAFM2PQr8FX5KpbK_3k5z3kDYBtkFrBhJwo";
+// 🔑 TOKEN
+const token = process.env.BOT_TOKEN || "7454675594:AAEP9585-lWBDOKg1Z1-g6w6OSGTRV4FY_0";
 
-// 👑 ADMIN ID — sizning Telegram ID'ingiz (ixtiyoriy)
+// 👑 ADMIN ID
 const ADMIN_CHAT_ID = 7081746531;
 
 const bot = new TelegramBot(token, { polling: true });
@@ -15,20 +15,20 @@ bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
-  // 🔔 Yangi foydalanuvchi haqida admin uchun xabar (ixtiyoriy)
-  const notifyAdmin = `
+  // Adminga xabar yuborish
+  try {
+    const notifyAdmin = `
 🧍‍♂️ <b>Yangi foydalanuvchi qo'shildi!</b>
 👤 Ism: ${user.first_name || "Noma'lum"}
 🆔 ID: <code>${user.id}</code>
 🌐 Username: ${user.username ? "@" + user.username : "—"}
 `;
-  try {
     await bot.sendMessage(ADMIN_CHAT_ID, notifyAdmin, { parse_mode: "HTML" });
   } catch (error) {
     console.log("Adminga xabar yuborishda xato:", error);
   }
 
-  // 💬 Yangi start xabari
+  // Start xabari
   const message = `
 🎮 <b>MegaPari va 888Starz strategik bot o'yinlari</b>
 
@@ -46,13 +46,13 @@ bot.onText(/\/start/, async (msg) => {
         [
           { 
             text: "🎯 MegaPari", 
-            callback_data: "megapari" 
+            callback_data: "platform_megapari" 
           }
         ],
         [
           { 
             text: "⭐ 888Starz", 
-            callback_data: "888starz" 
+            callback_data: "platform_888starz" 
           }
         ]
       ]
@@ -62,30 +62,41 @@ bot.onText(/\/start/, async (msg) => {
   await bot.sendMessage(chatId, message, options);
 });
 
-// === Platforma tanlanganda ===
+// === Callback query handler ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
+  // Callback query ni javoblash
+  await bot.answerCallbackQuery(query.id);
+
+  // Platforma tanlangan bo'lsa
+  if (data.startsWith("platform_")) {
+    await handlePlatformSelection(chatId, data);
+  }
+  // O'yin tanlangan bo'lsa
+  else if (data.startsWith("game_")) {
+    await handleGameSelection(chatId, data);
+  }
+});
+
+// === Platforma tanlash ===
+async function handlePlatformSelection(chatId, platformData) {
   const platforms = {
-    "megapari": {
+    "platform_megapari": {
       name: "MegaPari",
       apk: "https://t.me/insayderAI/686",
-      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s"
+      image: "https://img.freepik.com/free-vector/gradient-abstract-purple-background_23-2149120770.jpg"
     },
-    "888starz": {
+    "platform_888starz": {
       name: "888Starz",
-      apk: "https://t.me/insayderAI/682",
-      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s"
+      apk: "https://t.me/insayderAI/682", 
+      image: "https://img.freepik.com/free-vector/gradient-blue-abstract-background_23-2149120775.jpg"
     }
   };
 
-  const platform = platforms[data];
-  if (!platform) {
-    // Agar platforma emas, balki o'yin tanlangan bo'lsa
-    await handleGameSelection(chatId, data);
-    return;
-  }
+  const platform = platforms[platformData];
+  if (!platform) return;
 
   const caption = `
 ✅ <b>Siz ${platform.name} bukmekerini tanladingiz</b>
@@ -97,100 +108,62 @@ bot.on("callback_query", async (query) => {
 `;
 
   try {
-    // 📸 Rasm + Xabar
+    // Rasm yuborish
     await bot.sendPhoto(chatId, platform.image, {
       caption,
       parse_mode: "HTML"
     });
 
-    // 📦 APK fayl
+    // APK fayl yuborish
     await bot.sendDocument(chatId, platform.apk, {
-      caption: `📲 <b>${platform.name}</b> APK faylini yuklab oling va boshlang!`,
+      caption: `📲 <b>${platform.name} APK fayli</b>\nYuklab oling va o'ynashni boshlang!`,
       parse_mode: "HTML"
     });
 
-    // 🎮 O'yinlar menyusi
-    await bot.sendMessage(
-      chatId,
-      `🎯 <b>Daromad qilish uchun o'yinlarni tanlang:</b>`,
-      {
-        parse_mode: "HTML",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: "🍏 Apple of Fortune",
-                url: "https://t.me/aifutbot"
-              },
-              {
-                text: "✈️ Aviator",
-                url: "https://t.me/aifutbot"
-              }
-            ],
-            [
-              {
-                text: "⚽ Penalty", 
-                url: "https://t.me/aifutbot"
-              },
-              {
-                text: "🚀 JetX",
-                url: "https://t.me/aifutbot"
-              }
-            ],
-            [
-              {
-                text: "💎 Cristal",
-                url: "https://t.me/aifutbot"
-              }
-            ]
-          ]
-        }
-      }
-    );
+    // O'yinlar menyusini ko'rsatish
+    await showGamesMenu(chatId);
+
   } catch (error) {
     console.error("❌ Xato:", error);
     await bot.sendMessage(chatId, "⚠️ Xatolik yuz berdi. Keyinroq urinib ko'ring.");
   }
-});
+}
 
-// === O'yin tanlanganda (agar callback_data orqali o'yin tanlansa) ===
-async function handleGameSelection(chatId, game) {
-  const gameMessages = {
-    "apple": `
-🍏 <b>Apple of Fortune</b>
-🎯 Bu o'yinda strategiya bilan yuting!
-💰 Daromad qilish uchun telegram kanalimizda strategiyalarni kuzatib boring.
-    `,
-    "aviator": `
-✈️ <b>Aviator</b>
-🚀 Eng mashhur va tez daromad olish o'yinlaridan biri!
-📊 To'g'ri vaqtda chiqishni o'rganing.
-    `,
-    "penalty": `
-⚽ <b>Penalty</b>
-🎮 Sport o'yinlari sevuvchilar uchun!
-🥅 Penaltilar seriyasida g'alaba qozoning.
-    `,
-    "jetx": `
-🚀 <b>JetX</b>
-💥 Risk va mukofot o'yini!
-📈 Samolyot uchishidan oldin chiqib o'ling.
-    `,
-    "cristal": `
-💎 <b>Cristal</b>
-✨ Yangi va qizigarli o'yin!
-🔮 Kristallarni bashorat qiling va yuting.
-    `
-  };
+// === O'yinlar menyusi ===
+async function showGamesMenu(chatId) {
+  const message = `
+🎯 <b>Daromad qilish uchun o'yinlarni tanlang:</b>
 
-  const message = gameMessages[game] || "🎮 <b>Bu o'yin uchun strategiya tez orada qo'shiladi!</b>";
-  await bot.sendMessage(chatId, message, { 
+Quyidagi o'yinlardan birini tanlab, daromad olishni boshlang!
+`;
+
+  await bot.sendMessage(chatId, message, {
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
         [
           {
-            text: "📱 Telegram Kanalimiz",
+            text: "🍏 Apple of Fortune",
+            url: "https://t.me/aifutbot"
+          },
+          {
+            text: "✈️ Aviator", 
+            url: "https://t.me/aifutbot"
+          }
+        ],
+        [
+          {
+            text: "⚽ Penalty",
+            url: "https://t.me/aifutbot"
+          },
+          {
+            text: "🚀 JetX",
+            url: "https://t.me/aifutbot"
+          }
+        ],
+        [
+          {
+            text: "💎 Cristal",
             url: "https://t.me/aifutbot"
           }
         ]
@@ -198,6 +171,136 @@ async function handleGameSelection(chatId, game) {
     }
   });
 }
+
+// === O'yin tanlash ===
+async function handleGameSelection(chatId, gameData) {
+  const gameMessages = {
+    "game_apple": `
+🍏 <b>Apple of Fortune</b>
+
+🎯 Bu o'yinda strategiya bilan yuting!
+💰 Daromad qilish uchun telegram kanalimizda strategiyalarni kuzatib boring.
+
+📊 <b>O'yin qoidalari:</b>
+• Olma aylanasida g'olib bo'ling
+• Strategik harakatlar bilan yuting
+• Bonuslardan foydalaning
+`,
+
+    "game_aviator": `
+✈️ <b>Aviator</b>
+
+🚀 Eng mashhur va tez daromad olish o'yinlaridan biri!
+📊 To'g'ri vaqtda chiqishni o'rganing.
+
+📈 <b>Maslahat:</b>
+• Koeffitsient oshgan sari risk oshadi
+• Vaqtida chiqib o'ling
+• Kichik summadan boshlang
+`,
+
+    "game_penalty": `
+⚽ <b>Penalty</b>
+
+🎮 Sport o'yinlari sevuvchilar uchun!
+🥅 Penaltilar seriyasida g'alaba qozoning.
+
+🏆 <b>Strategiya:</b>
+• Darvozabon harakatlarini kuzating
+• Turli burchaklarni sinab ko'ring
+• Zarbalaringizni diversifikatsiya qiling
+`,
+
+    "game_jetx": `
+🚀 <b>JetX</b>
+
+💥 Risk va mukofot o'yini!
+📈 Samolyot uchishidan oldin chiqib o'ling.
+
+⚠️ <b>Eslatma:</b>
+• Samolyot har qachon ham parvoz qilishi mumkin
+• Koeffitsient oshgan sari risk oshadi
+• O'z limitlaringizni belgilang
+`,
+
+    "game_cristal": `
+💎 <b>Cristal</b>
+
+✨ Yangi va qizigarli o'yin!
+🔮 Kristallarni bashorat qiling va yuting.
+
+🎲 <b>Qoidalar:</b>
+• Kristallar kombinatsiyasini taxmin qiling
+• Turli darajadagi mukofotlar
+• Strategik yondashuv muhim
+`
+  };
+
+  const message = gameMessages[gameData] || `
+🎮 <b>O'yin ma'lumotlari</b>
+
+Tez orada ushbu o'yin uchun batafsil ma'lumotlar qo'shiladi.
+
+📱 Hozircha telegram kanalimizda yangiliklarni kuzatib boring:
+`;
+
+  await bot.sendMessage(chatId, message, { 
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "📱 Telegram Kanalimiz",
+            url: "https://t.me/aifutbot"
+          }
+        ],
+        [
+          {
+            text: "🔙 Asosiy menyu",
+            callback_data: "main_menu"
+          }
+        ]
+      ]
+    }
+  });
+}
+
+// === Asosiy menyuga qaytish ===
+bot.on("callback_query", async (query) => {
+  if (query.data === "main_menu") {
+    const chatId = query.message.chat.id;
+    
+    // Asosiy menyuni qayta yuborish
+    const message = `
+🎮 <b>MegaPari va 888Starz strategik bot o'yinlari</b>
+
+💰 <b>O'ynab daromad qilish ishonchli platformalar</b>
+📝 Ro'yxatdan o'tib <b>200% bonus</b>ga ega bo'ling
+
+👇 <b>Platformani tanlang:</b>
+`;
+
+    await bot.sendMessage(chatId, message, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { 
+              text: "🎯 MegaPari", 
+              callback_data: "platform_megapari" 
+            }
+          ],
+          [
+            { 
+              text: "⭐ 888Starz", 
+              callback_data: "platform_888starz" 
+            }
+          ]
+        ]
+      }
+    });
+  }
+});
 
 // === Xatoliklar boshqaruvi ===
 bot.on("polling_error", (error) => {
@@ -212,14 +315,8 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-// === Token mavjudligini tekshirish ===
+// Token tekshiruvi
 if (!process.env.BOT_TOKEN && token === "BU_YERGA_TOKEN_YOZILADI") {
   console.error("❌ BOT_TOKEN environment variable o'rnatilmagan!");
-  process.exit(1);
-}
-
-// === ADMIN_CHAT_ID tekshiruvi ===
-if (isNaN(ADMIN_CHAT_ID)) {
-  console.error("❌ ADMIN_CHAT_ID noto'g'ri formatda!");
   process.exit(1);
 }
