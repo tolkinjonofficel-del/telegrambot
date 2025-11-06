@@ -1,34 +1,53 @@
 const TelegramBot = require("node-telegram-bot-api");
-const token = process.env.BOT_TOKEN || "7454675594:AAFywGrnS-9Qo7zeLYOSdhKi1zxP04O1qhg"; // 👈 o‘zingizning tokeningizni qo‘ying
+const token = process.env.BOT_TOKEN || "7454675594:AAGXaG5eRBClVwj9PjSyqcK5B_VV1FqWvLQ"; // 👈 o'zingizning tokeningizni kiriting
 
 const bot = new TelegramBot(token, { polling: true });
 
-const users = {}; // { userId: { referrals: Set([...]) } }
+// Vaqtinchalik bazani yaratamiz (RAM ichida)
+const users = {}; // { userId: { referrals: Set([...]), invitedBy: userId } }
 
 console.log("✅ Sport kupon bot ishga tushdi...");
 
-// === /start komandasi ===
+// === START komandasi ===
 bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const referrerId = match[1];
+  const referrerId = match[1]; // /start <ref_id>
 
-  // Referral hisoblash
+  // === Referral tizimi ===
   if (referrerId && referrerId !== String(userId)) {
     if (!users[userId]) users[userId] = { referrals: new Set(), invitedBy: referrerId };
     if (!users[referrerId]) users[referrerId] = { referrals: new Set() };
-    users[referrerId].referrals.add(userId);
 
-    // 10 ta taklif uchun mukofot
-    if (users[referrerId].referrals.size >= 10) {
-      await bot.sendMessage(
-        referrerId,
-        "🎉 Siz 10 ta do‘stni taklif qildingiz!\nKupon kodingiz: <b>XVGZD</b>",
-        { parse_mode: "HTML" }
-      );
+    // Yangi foydalanuvchini ro‘yxatga olish
+    const referrer = users[referrerId];
+    if (!referrer.referrals.has(userId)) {
+      referrer.referrals.add(userId);
+
+      const total = referrer.referrals.size;
+      const remaining = Math.max(10 - total, 0);
+
+      // Taklifchi foydalanuvchiga xabar yuborish
+      if (total < 10) {
+        await bot.sendMessage(
+          referrerId,
+          `👤 <b>1 ta yangi do‘st qo‘shildi!</b>\nSizda hozirda <b>${total}</b> ta taklif mavjud.\nYana <b>${remaining}</b> ta do‘st taklif qilsangiz, sizga kupon kodi yuboriladi 🎯`,
+          { parse_mode: "HTML" }
+        );
+      }
+
+      // Agar 10 ta do‘st to‘plansa
+      if (total === 10) {
+        await bot.sendMessage(
+          referrerId,
+          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\nSizning kupon kodingiz: <b>XVGZD</b>",
+          { parse_mode: "HTML" }
+        );
+      }
     }
   }
 
+  // === Boshlang‘ich xabar ===
   const startMessage = `
 ⚽️ <b>Ushbu bot yordamida har kuni bepul kuponlar oling!</b>
 
@@ -44,7 +63,7 @@ bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
   });
 });
 
-// === Callbacklar ===
+// === Callback bosilganda ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -92,7 +111,7 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
 📨 Taklif tugmasini bosing va do‘stlaringizga yuboring 👇
 `;
 
-    // 🔗 Telegram share havolasi (matn bilan birga)
+    // Share havolasi (Telegram “Do‘stga ulashish” oynasi uchun)
     const shareText = encodeURIComponent(
       `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️\n99.99% ishonchli kuponlarni shu botdan ol! 🔥\n\n👉 ${referralLink}`
     );
@@ -101,13 +120,11 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
     await bot.sendMessage(chatId, text, {
       parse_mode: "HTML",
       reply_markup: {
-        inline_keyboard: [
-          [{ text: "📨 Do‘stni taklif qilish", url: shareUrl }],
-        ],
+        inline_keyboard: [[{ text: "📨 Do‘stni taklif qilish", url: shareUrl }]],
       },
     });
 
-    // Havolani keyinchalik foydalanuvchiga biriktiramiz
+    // Foydalanuvchining havolasini saqlaymiz
     users[chatId] = { ...users[chatId], referralLink };
     return;
   }
