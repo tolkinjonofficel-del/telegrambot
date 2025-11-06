@@ -3,7 +3,7 @@ const TelegramBot = require("node-telegram-bot-api");
 // === Sozlamalar ===
 const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
 const ADMIN_ID = 7081746531;
-const CHANNEL_ID = @insayderai; // 👈 kanal ID ni shu yerga yozing (yoki @username)
+const CHANNEL_ID = "@insayderai"; // 👈 kanal ID ni shu yerga yozing (yoki @username)
 const CHANNEL_LINK = "https://t.me/insayderai";
 
 const bot = new TelegramBot(TOKEN, { polling: true });
