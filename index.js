@@ -40,7 +40,11 @@ bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
       if (total === 10) {
         await bot.sendMessage(
           referrerId,
-          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\nSizning kupon kodingiz: <b>XVGZD</b>",
+          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\n07 NOYABD 01:00 YEVROPA LIGASI:Aston villa vs Makkabi  Aston villa galaba fora -1.5 (1.683 KF) 
+Boloniya vs Brann 1 taym galaba Bolonya (1.78 KF) 
+Braga vs Genk har ikkala taymda gol boladi (1.64 KF)
+Biktoriya P vs Fenerbaxche uglavoy totali 8.5 kon (1.63 KF)
+( UMUMIY KF 8.12 )  <b>XVGZD</b>",
           { parse_mode: "HTML" }
         );
       }
@@ -76,7 +80,7 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
 `;
 
     const imageUrl =
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
+      "https://encrypted-tbn0.gstatic.com/images?";
 
     await bot.sendPhoto(chatId, imageUrl, {
       caption,
