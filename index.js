@@ -1,12 +1,13 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
-const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // Tokeningizni yozing
+const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // Bot tokeningiz
 const ADMIN_ID = 7081746531; // Sizning Telegram ID
 const CHANNEL_LINK = "https://t.me/insayderai"; // Kanal havolasi
 
+// === Botni ishga tushiramiz ===
 const bot = new TelegramBot(TOKEN, { polling: true });
-console.log("✅ Sport Kupon Bot ishga tushdi...");
+console.log("✅ Kupon bot ishga tushdi...");
 
 // === Kupon ma'lumotlari ===
 let coupon = {
@@ -33,15 +34,13 @@ let coupon = {
 🔥 <b>Umumiy koeffitsient:</b> 8.12  
 
 🧠 Bu kupon <b>AI tahlili</b> asosida tuzilgan!  
-💰 Omad siz tomonda bo‘lsin!
-`,
-  requireShare: false,
+💰 Omad siz tomonda bo‘lsin!`,
 };
 
-// === Foydalanuvchilar bazasi ===
+// === Foydalanuvchilar bazasi (xotirada) ===
 const users = {};
 
-// === Xabar yuborish yordamchisi ===
+// === Xabar yuborish uchun yordamchi ===
 async function sendHtml(chatId, text, buttons = null) {
   const options = { parse_mode: "HTML" };
   if (buttons) options.reply_markup = { inline_keyboard: buttons };
@@ -54,28 +53,31 @@ bot.onText(/\/start/, async (msg) => {
   const userId = msg.from.id;
   const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
+  // Foydalanuvchini ro‘yxatga olish
   if (!users[userId]) users[userId] = { username };
 
-  // Adminni yangi foydalanuvchidan xabardor qilish
+  // Adminga yangi foydalanuvchi haqida xabar
   if (userId !== ADMIN_ID) {
     await bot.sendMessage(
       ADMIN_ID,
-      `🧍‍♂️ <b>Yangi foydalanuvchi:</b>\n👤 ${username}\n🆔 ${userId}`,
+      `🧍‍♂️ <b>Yangi foydalanuvchi qo‘shildi:</b>\n👤 ${username}\n🆔 ${userId}`,
       { parse_mode: "HTML" }
     );
   }
 
-  // Start menyu
-  const startText = `
+  // Foydalanuvchiga menyu yuborish
+  const welcomeText = `
 ⚽️ <b>Har kuni yangi futbol kuponlari!</b>
 
-📊 Eng aniq AI tahlillar, 🎯 professional prognozlar va 💰 ishonchli kuponlar shu yerda.
-`;
+📊 Eng aniq AI tahlillar, 🎯 professional prognozlar  
+va 💰 ishonchli kuponlar shu yerda.`;
 
-  await sendHtml(chatId, startText, [
+  const buttons = [
     [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
     [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }],
-  ]);
+  ];
+
+  await sendHtml(chatId, welcomeText, buttons);
 });
 
 // === CALLBACKLAR ===
@@ -86,20 +88,20 @@ bot.on("callback_query", async (query) => {
   try {
     // === Kupon olish ===
     if (data === "get_coupon") {
-      await bot.answerCallbackQuery(query.id, { text: "Kupon yuklanmoqda..." });
+      await bot.answerCallbackQuery(query.id, { text: "Kupon tayyorlanmoqda..." });
 
-      const kuponMatn = `${coupon.title}\n\n${coupon.text}`;
-
-      await sendHtml(chatId, kuponMatn, [
-        [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }],
-      ]);
+      await sendHtml(
+        chatId,
+        `${coupon.title}\n\n${coupon.text}`,
+        [[{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }]]
+      );
     }
 
     // === Kuponni tarqatish ===
     if (data === "share_coupon") {
       const botInfo = await bot.getMe();
       const shareText = encodeURIComponent(
-        `🎯 Eng ishonchli futbol kuponlar!\nHar kuni yangi tahlillar bilan!\n👉 https://t.me/${botInfo.username}`
+        `🎯 Eng ishonchli futbol kuponlar! Har kuni yangi tahlillar bilan!\n👉 https://t.me/${botInfo.username}`
       );
       const shareUrl = `https://t.me/share/url?text=${shareText}`;
       await bot.answerCallbackQuery(query.id);
@@ -110,16 +112,18 @@ bot.on("callback_query", async (query) => {
 
     // === ADMIN PANEL ===
     if (chatId === ADMIN_ID) {
+      // Kuponni yangilash
       if (data === "admin_update_coupon") {
-        await sendHtml(chatId, "📝 Yangi kupon matnini yuboring (HTML formatda):");
+        await sendHtml(chatId, "📝 Yangi kupon matnini kiriting (HTML formatda):");
         bot.once("message", async (msg) => {
           coupon.text = msg.text;
           await sendHtml(chatId, "✅ Kupon yangilandi!");
         });
       }
 
+      // Xabar yuborish
       if (data === "admin_broadcast") {
-        await sendHtml(chatId, "✉️ Barcha foydalanuvchilarga yuboriladigan xabarni yozing:");
+        await sendHtml(chatId, "✉️ Foydalanuvchilarga yuboriladigan xabarni yozing:");
         bot.once("message", async (msg) => {
           const text = msg.text;
           let count = 0;
@@ -135,15 +139,15 @@ bot.on("callback_query", async (query) => {
     }
   } catch (err) {
     console.error("❌ Xatolik:", err.message);
-    await bot.sendMessage(chatId, "⚠️ Xatolik yuz berdi. Keyinroq urinib ko‘ring.");
+    await sendHtml(chatId, "⚠️ Xatolik yuz berdi. Keyinroq urinib ko‘ring.");
   }
 });
 
-// === ADMIN PANEL ===
+// === ADMIN PANEL KOMANDASI ===
 bot.onText(/\/admin/, async (msg) => {
   if (msg.chat.id !== ADMIN_ID) return;
   await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
-    [{ text: "🆕 Kupon matnini yangilash", callback_data: "admin_update_coupon" }],
+    [{ text: "🆕 Kuponni yangilash", callback_data: "admin_update_coupon" }],
     [{ text: "📨 Xabar yuborish", callback_data: "admin_broadcast" }],
   ]);
 });
