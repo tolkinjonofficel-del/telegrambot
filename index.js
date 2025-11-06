@@ -1,10 +1,10 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
-const TOKEN = process.env.BOT_TOKEN || "7454675594:AAGXaG5eRBClVwj9PjSyqcK5B_VV1FqWvLQ";
+const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
 const REQUIRED_INVITES = 10;
 const COUPON_CODE = "XVGZD";
-const IMAGE_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
+const IMAGE_URL = "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457";
 
 // === Botni ishga tushiramiz ===
 const bot = new TelegramBot(TOKEN, { polling: true });
