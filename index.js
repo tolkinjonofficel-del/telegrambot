@@ -1,89 +1,76 @@
 const TelegramBot = require("node-telegram-bot-api");
-const token = process.env.BOT_TOKEN || "7454675594:AAGXaG5eRBClVwj9PjSyqcK5B_VV1FqWvLQ"; // 👈 o'zingizning tokeningizni kiriting
 
-const bot = new TelegramBot(token, { polling: true });
+// === Sozlamalar ===
+const TOKEN = process.env.BOT_TOKEN || "7454675594:AAGXaG5eRBClVwj9PjSyqcK5B_VV1FqWvLQ";
+const REQUIRED_INVITES = 10;
+const COUPON_CODE = "XVGZD";
+const IMAGE_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
 
-// Vaqtinchalik bazani yaratamiz (RAM ichida)
-const users = {}; // { userId: { referrals: Set([...]), invitedBy: userId } }
+// === Botni ishga tushiramiz ===
+const bot = new TelegramBot(TOKEN, { polling: true });
+const users = {}; // { userId: { referrals: Set(), invitedBy: userId } }
 
 console.log("✅ Sport kupon bot ishga tushdi...");
 
+// === Yordamchi funksiya: xabar yuborish ===
+async function sendHtml(chatId, text, buttons = null) {
+  const options = { parse_mode: "HTML" };
+  if (buttons) options.reply_markup = { inline_keyboard: buttons };
+  await bot.sendMessage(chatId, text, options);
+}
+
 // === START komandasi ===
 bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
-  const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const referrerId = match[1]; // /start <ref_id>
+  const chatId = msg.chat.id;
+  const referrerId = match[1];
 
-  // === Referral tizimi ===
+  // Referral tizimi
   if (referrerId && referrerId !== String(userId)) {
     if (!users[userId]) users[userId] = { referrals: new Set(), invitedBy: referrerId };
     if (!users[referrerId]) users[referrerId] = { referrals: new Set() };
 
-    // Yangi foydalanuvchini ro‘yxatga olish
     const referrer = users[referrerId];
     if (!referrer.referrals.has(userId)) {
       referrer.referrals.add(userId);
 
       const total = referrer.referrals.size;
-      const remaining = Math.max(10 - total, 0);
+      const remaining = Math.max(REQUIRED_INVITES - total, 0);
 
-      // Taklifchi foydalanuvchiga xabar yuborish
-      if (total < 10) {
-        await bot.sendMessage(
+      if (total < REQUIRED_INVITES) {
+        await sendHtml(
           referrerId,
-          `👤 <b>1 ta yangi do‘st qo‘shildi!</b>\nSizda hozirda <b>${total}</b> ta taklif mavjud.\nYana <b>${remaining}</b> ta do‘st taklif qilsangiz, sizga kupon kodi yuboriladi 🎯`,
-          { parse_mode: "HTML" }
+          `👤 <b>Yangi do‘st qo‘shildi!</b>\nSizda <b>${total}</b> ta taklif bor.\nYana <b>${remaining}</b> ta do‘st taklif qilsangiz — kupon kodi sizga yuboriladi 🎯`
         );
-      }
-
-      // Agar 10 ta do‘st to‘plansa
-      if (total === 10) {
-        await bot.sendMessage(
+      } else if (total === REQUIRED_INVITES) {
+        await sendHtml(
           referrerId,
-          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\n07 NOYABD 01:00 YEVROPA LIGASI:Aston villa vs Makkabi  Aston villa galaba fora -1.5 (1.683 KF) 
-Boloniya vs Brann 1 taym galaba Bolonya (1.78 KF) 
-Braga vs Genk har ikkala taymda gol boladi (1.64 KF)
-Biktoriya P vs Fenerbaxche uglavoy totali 8.5 kon (1.63 KF)
-( UMUMIY KF 8.12 )  <b>XVGZD</b>",
-          { parse_mode: "HTML" }
+          `🎉 <b>Tabriklaymiz!</b> Siz ${REQUIRED_INVITES} ta do‘stni taklif qildingiz!\n\nKupon kodi: <b>${COUPON_CODE}</b>\n\n<b>07 NOYABR, 01:00 YEVROPA LIGASI:</b>\n⚽ Aston Villa vs Makkabi — Aston Villa (-1.5) (1.68 KF)\n⚽ Boloniya vs Brann — 1-taym Boloniya (1.78 KF)\n⚽ Braga vs Genk — Har ikkala taymda gol (1.64 KF)\n⚽ Viktoriya P. vs Fenerbahçe — Uglavoylar <8.5 (1.63 KF)\n<b>UMUMIY KOEFF: 8.12</b>`
         );
       }
     }
   }
 
-  // === Boshlang‘ich xabar ===
-  const startMessage = `
+  // Boshlang‘ich xabar
+  await sendHtml(chatId, `
 ⚽️ <b>Ushbu bot yordamida har kuni bepul kuponlar oling!</b>
 
-💡 <b>Ishonchli kuponlar</b> har kuni sizlar uchun AI yordamida tayyorlanadi.  
+💡 <b>Ishonchli kuponlar</b> har kuni AI yordamida tayyorlanadi.  
 📋 Pastdagi tugmani bosing va ishonchli kupon oling 👇
-`;
-
-  await bot.sendMessage(chatId, startMessage, {
-    parse_mode: "HTML",
-    reply_markup: {
-      inline_keyboard: [[{ text: "📋 Kupon olish", callback_data: "get_coupon" }]],
-    },
-  });
+`, [[{ text: "📋 Kupon olish", callback_data: "get_coupon" }]]);
 });
 
-// === Callback bosilganda ===
+// === CALLBACK bosilganda ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
   // === Kupon olish ===
   if (data === "get_coupon") {
-    const caption = `
-🎯 <b>99.99% ishonchli kupon!</b>  
-Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
-`;
-
-    const imageUrl =
-      "https://encrypted-tbn0.gstatic.com/images?";
-
-    await bot.sendPhoto(chatId, imageUrl, {
-      caption,
+    await bot.sendPhoto(chatId, IMAGE_URL, {
+      caption: `
+🎯 <b>99.99% ishonchli kupon!</b>
+Kuponni olish uchun bukmekerni tanlang 👇`,
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
@@ -104,32 +91,23 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
   // === Bukmeker tanlanganda ===
   if (data.startsWith("bm_")) {
     const bookmaker = data.replace("bm_", "").toUpperCase();
-
     const botInfo = await bot.getMe();
     const referralLink = `https://t.me/${botInfo.username}?start=${chatId}`;
 
     const text = `
-🏦 <b>${bookmaker}</b> bukmekerni tanladingiz!  
+🏦 <b>${bookmaker}</b> bukmekerni tanladingiz!
 
-💸 Kupon kodini olish uchun <b>10 ta do‘stni</b> botga taklif qiling.  
-📨 Taklif tugmasini bosing va do‘stlaringizga yuboring 👇
+💸 Kupon kodini olish uchun <b>${REQUIRED_INVITES} ta do‘stni</b> taklif qiling.  
+📨 Quyidagi tugmani bosing va ulashish oynasidan do‘stlaringizga yuboring 👇
 `;
 
-    // Share havolasi (Telegram “Do‘stga ulashish” oynasi uchun)
     const shareText = encodeURIComponent(
-      `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️\n99.99% ishonchli kuponlarni shu botdan ol! 🔥\n\n👉 ${referralLink}`
+      `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️ 99.99% ishonchli kuponlarni shu botdan ol! 🔥\n👉 ${referralLink}`
     );
     const shareUrl = `https://t.me/share/url?url=${referralLink}&text=${shareText}`;
 
-    await bot.sendMessage(chatId, text, {
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [[{ text: "📨 Do‘stni taklif qilish", url: shareUrl }]],
-      },
-    });
+    await sendHtml(chatId, text, [[{ text: "📨 Do‘stni taklif qilish", url: shareUrl }]]);
 
-    // Foydalanuvchining havolasini saqlaymiz
     users[chatId] = { ...users[chatId], referralLink };
-    return;
   }
 });
