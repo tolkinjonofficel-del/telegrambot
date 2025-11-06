@@ -2,30 +2,30 @@ const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
 const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
-const ADMIN_ID = 7081746531; // 👈 Admin ID
-const CHANNEL_USERNAME = "@insayderai";
+const ADMIN_ID = 7081746531;
+const CHANNEL_ID = -1002296703235; // 👈 kanal ID ni shu yerga yozing (yoki @username)
 const CHANNEL_LINK = "https://t.me/insayderai";
 
-// === O‘zgaruvchilar ===
+const bot = new TelegramBot(TOKEN, { polling: true });
+
+// === Boshlang‘ich sozlamalar ===
 let coupon = {
   title: "Bugungi AI kuponi",
-  text: "⚽️ Aston Villa vs Makkabi — Aston Villa (-1.5) (1.68 KF)\n⚽️ Boloniya vs Brann — 1-taym Boloniya (1.78 KF)\n⚽️ Braga vs Genk — Har ikkala taymda gol (1.64 KF)\n⚽️ Viktoriya P. vs Fenerbahçe — Uglavoylar <8.5 (1.63 KF)\n<b>UMUMIY KOEFF: 8.12</b>",
-  image: "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457",
-  buttons: [
-    [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }]
-  ]
+  text: `
+⚽ Aston Villa vs Makkabi — Aston Villa (-1.5) (1.68 KF)
+⚽ Boloniya vs Brann — 1-taym Boloniya (1.78 KF)
+⚽ Braga vs Genk — Har ikkala taymda gol (1.64 KF)
+⚽ Viktoriya P. vs Fenerbahçe — Uglavoylar <8.5 (1.63 KF)
+<b>UMUMIY KOEFF: 8.12</b>`,
+  image: "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457"
 };
 
-const bot = new TelegramBot(TOKEN, { polling: true });
-const users = {};
+console.log("✅ Kupon bot ishga tushdi...");
 
-console.log("✅ AI Sport Kupon bot ishga tushdi...");
-
-// === Yordamchi funksiya ===
 async function sendHtml(chatId, text, buttons = null) {
-  const opts = { parse_mode: "HTML" };
-  if (buttons) opts.reply_markup = { inline_keyboard: buttons };
-  return bot.sendMessage(chatId, text, opts);
+  const options = { parse_mode: "HTML" };
+  if (buttons) options.reply_markup = { inline_keyboard: buttons };
+  return bot.sendMessage(chatId, text, options);
 }
 
 // === START komandasi ===
@@ -33,40 +33,38 @@ bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
-  // 🔔 Adminga yangi foydalanuvchi haqida bildirish
   if (userId !== ADMIN_ID) {
     await bot.sendMessage(
       ADMIN_ID,
-      `🧍‍♂️ <b>Yangi foydalanuvchi:</b>\n👤 ${msg.from.first_name}\n🆔 ${userId}`,
-      { parse_mode: "HTML" }
+      `🧍‍♂️ Yangi foydalanuvchi: ${msg.from.first_name} (ID: ${userId})`
     );
   }
 
-  const startText = `
-⚽️ <b>Ushbu bot har kuni futbol o‘yinlariga yangi kupon joylab boradi!</b>
+  await sendHtml(
+    chatId,
+    `
+⚽️ <b>Har kuni yangi futbol kuponlari!</b>
 
-📊 Eng aniq AI tahlillar, 🎯 professional prognozlar va 💰 ishonchli kuponlar shu yerda!
-`;
-
-  const buttons = [
-    [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
-    [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
-  ];
-
-  await sendHtml(chatId, startText, buttons);
+📊 <b>Professional tahlil</b>, 🎯 <b>aniq prognoz</b> va 💰 <b>ishonchli kuponlar</b> shu yerda.
+`,
+    [
+      [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
+      [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
+    ]
+  );
 });
 
-// === Callbacklar ===
+// === CALLBACK ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
+
   await bot.answerCallbackQuery(query.id);
 
-  // === Kupon olish ===
   if (data === "get_coupon") {
     try {
-      // 1️⃣ Kanalga obuna tekshirish
-      const member = await bot.getChatMember(CHANNEL_USERNAME, chatId);
+      // 🧠 Kanal obuna holatini tekshiramiz
+      const member = await bot.getChatMember(CHANNEL_ID, chatId);
       const subscribed = ["member", "administrator", "creator"].includes(member.status);
 
       if (!subscribed) {
@@ -80,90 +78,38 @@ bot.on("callback_query", async (query) => {
         );
       }
 
-      // 2️⃣ A’zo bo‘lgan — kuponni ko‘rsatish
+      // ✅ Agar a’zo bo‘lsa — kupon yuboriladi
       await bot.sendPhoto(chatId, coupon.image, {
         caption: `<b>${coupon.title}</b>\n\n${coupon.text}`,
         parse_mode: "HTML",
-        reply_markup: { inline_keyboard: coupon.buttons }
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }]
+          ]
+        }
       });
     } catch (err) {
       console.error("❌ Obuna tekshirish xatosi:", err.message);
-      await sendHtml(chatId, "⚠️ Obuna holatini tekshirishda xatolik. Keyinroq urinib ko‘ring.");
+
+      // ⚠️ Agar bot kanalga kira olmasa yoki ruxsatsiz bo‘lsa
+      await sendHtml(
+        chatId,
+        `⚠️ Obuna holatini aniqlab bo‘lmadi.\nBot kanalga admin sifatida qo‘shilganligini tekshiring.`,
+        [[{ text: "📢 Kanalga o‘tish", url: CHANNEL_LINK }]]
+      );
     }
   }
 
   // === Kuponni tarqatish ===
   if (data === "share_coupon") {
+    const botInfo = await bot.getMe();
     const shareText = encodeURIComponent(
-      `🎯 Eng ishonchli futbol kuponlar! Har kuni yangilanadi ⚽️\nBotga qo‘shil: https://t.me/${(await bot.getMe()).username}`
+      `🎯 Eng ishonchli futbol kuponlar!\nHar kuni yangi tahlillar bilan!\n👉 https://t.me/${botInfo.username}`
     );
     const shareUrl = `https://t.me/share/url?text=${shareText}`;
 
     await sendHtml(chatId, "📤 Kuponni do‘stlaringizga yuboring 👇", [
       [{ text: "🔗 Tarqatish havolasini ulashish", url: shareUrl }]
     ]);
-  }
-});
-
-// === ADMIN PANEL ===
-bot.onText(/\/admin/, async (msg) => {
-  if (msg.chat.id !== ADMIN_ID) return;
-
-  await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
-    [{ text: "🆕 Kupon qo‘shish / tahrirlash", callback_data: "admin_update_coupon" }],
-    [{ text: "➕ Tugma qo‘shish", callback_data: "admin_add_button" }],
-    [{ text: "📢 Foydalanuvchilarga xabar yuborish", callback_data: "admin_broadcast" }]
-  ]);
-});
-
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
-  await bot.answerCallbackQuery(query.id);
-  if (chatId !== ADMIN_ID) return;
-
-  // === Kuponni yangilash ===
-  if (data === "admin_update_coupon") {
-    await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm bilan yoki rasm holda).");
-    bot.once("message", async (msg) => {
-      if (msg.photo) {
-        const photoId = msg.photo[msg.photo.length - 1].file_id;
-        coupon.image = photoId;
-        coupon.text = msg.caption || coupon.text;
-      } else {
-        coupon.text = msg.text;
-      }
-      await sendHtml(chatId, "✅ Kupon yangilandi!");
-    });
-  }
-
-  // === Tugma qo‘shish ===
-  if (data === "admin_add_button") {
-    await sendHtml(chatId, "🔘 Yangi tugma matnini kiriting (masalan: Tarqatish havolasi):");
-    bot.once("message", async (msg) => {
-      const buttonText = msg.text;
-      await sendHtml(chatId, "🔗 Tugma havolasini kiriting (yoki callback_data yozing):");
-      bot.once("message", async (msg2) => {
-        const buttonUrl = msg2.text;
-        coupon.buttons.push([{ text: buttonText, url: buttonUrl }]);
-        await sendHtml(chatId, `✅ Tugma qo‘shildi: ${buttonText}`);
-      });
-    });
-  }
-
-  // === Xabar yuborish ===
-  if (data === "admin_broadcast") {
-    await sendHtml(chatId, "📢 Barcha foydalanuvchilarga yuboriladigan xabarni yozing:");
-    bot.once("message", async (msg) => {
-      const text = msg.text;
-      let count = 0;
-      for (const id of Object.keys(users)) {
-        try {
-          await sendHtml(id, `📢 <b>Admin xabari:</b>\n${text}`);
-          count++;
-        } catch (e) {}
-      }
-      await sendHtml(chatId, `✅ ${count} ta foydalanuvchiga yuborildi.`);
-    });
   }
 });
