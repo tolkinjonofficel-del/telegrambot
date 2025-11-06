@@ -1,13 +1,14 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
-const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
-const ADMIN_ID = 7081746531;
-const CHANNEL_LINK = "https://t.me/insayderai";
+const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // o'zingizning tokeningiz
+const ADMIN_ID = 7081746531; // o'zingizning Telegram ID'ingiz
+const CHANNEL_LINK = "https://t.me/insayderai"; // kanal havolasi
 
 const bot = new TelegramBot(TOKEN, { polling: true });
+console.log("✅ Kupon bot ishga tushdi...");
 
-// === Dastur o‘zgaruvchilari ===
+// === Kupon ma'lumotlari ===
 let coupon = {
   title: "Bugungi AI kuponi",
   text: `
@@ -23,15 +24,14 @@ let coupon = {
   ]
 };
 
-const users = {}; // { userId: { username } }
+// === Foydalanuvchilar bazasi ===
+const users = {};
 
-console.log("✅ Sport Kupon Bot ishga tushdi...");
-
-// === Xabar yuborish yordamchisi ===
+// === HTML formatda xabar yuboruvchi funksiya ===
 async function sendHtml(chatId, text, buttons = null) {
-  const options = { parse_mode: "HTML" };
-  if (buttons) options.reply_markup = { inline_keyboard: buttons };
-  return bot.sendMessage(chatId, text, options);
+  const opts = { parse_mode: "HTML" };
+  if (buttons) opts.reply_markup = { inline_keyboard: buttons };
+  return bot.sendMessage(chatId, text, opts);
 }
 
 // === START komandasi ===
@@ -40,30 +40,27 @@ bot.onText(/\/start/, async (msg) => {
   const userId = msg.from.id;
   const username = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
 
-  // 🧾 Adminni yangi foydalanuvchidan xabardor qilish
+  // Adminga yangi foydalanuvchini xabar qilish
   if (userId !== ADMIN_ID) {
     await bot.sendMessage(
       ADMIN_ID,
-      `🧍‍♂️ <b>Yangi foydalanuvchi:</b>\n👤 ${username}\n🆔 ${userId}`,
+      `🧍‍♂️ Yangi foydalanuvchi qo‘shildi:\n👤 ${username}\n🆔 ${userId}`,
       { parse_mode: "HTML" }
     );
   }
 
   users[userId] = { username };
 
-  // Start menyu
-  await sendHtml(
-    chatId,
-    `
+  const startMessage = `
 ⚽️ <b>Har kuni yangi futbol kuponlari!</b>
 
-📊 <b>Professional tahlillar</b>, 🎯 <b>aniq prognozlar</b> va 💰 <b>ishonchli kuponlar</b> shu yerda.
-`,
-    [
-      [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
-      [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
-    ]
-  );
+📊 <b>Professional tahlil</b>, 🎯 <b>aniq prognoz</b> va 💰 <b>ishonchli kuponlar</b> shu yerda.
+`;
+
+  await sendHtml(chatId, startMessage, [
+    [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
+    [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
+  ]);
 });
 
 // === CALLBACKLAR ===
@@ -82,7 +79,7 @@ bot.on("callback_query", async (query) => {
       );
     }
 
-    // Kupon yuborish
+    // Kupon yuboriladi
     await bot.sendPhoto(chatId, coupon.image, {
       caption: `<b>${coupon.title}</b>\n\n${coupon.text}`,
       parse_mode: "HTML",
@@ -102,91 +99,79 @@ bot.on("callback_query", async (query) => {
       [{ text: "🔗 Tarqatish havolasini ulashish", url: shareUrl }]
     ]);
   }
-});
 
+  // === ADMIN PANEL CALLBACK ===
+  if (chatId === ADMIN_ID) {
+    // Kuponni yangilash
+    if (data === "admin_update_coupon") {
+      await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm bilan yoki rasm holda).");
+      bot.once("message", async (msg) => {
+        if (msg.photo) {
+          const photoId = msg.photo[msg.photo.length - 1].file_id;
+          coupon.image = photoId;
+          coupon.text = msg.caption || coupon.text;
+        } else {
+          coupon.text = msg.text;
+        }
+        await sendHtml(chatId, "✅ Kupon yangilandi!");
+      });
+    }
+
+    // Tugma qo‘shish
+    if (data === "admin_add_button") {
+      await sendHtml(chatId, "🔘 Tugma nomini kiriting:");
+      bot.once("message", async (msg) => {
+        const btnName = msg.text;
+        await sendHtml(chatId, "🔗 Tugma havolasini kiriting (yoki callback_data):");
+        bot.once("message", async (msg2) => {
+          const btnLink = msg2.text;
+          coupon.buttons.push([{ text: btnName, url: btnLink }]);
+          await sendHtml(chatId, `✅ Tugma qo‘shildi: ${btnName}`);
+        });
+      });
+    }
+
+    // Tarqatish shartini o‘rnatish
+    if (data === "admin_share_condition") {
+      await sendHtml(chatId, "⚙️ Tarqatish majburiy bo‘lsinmi? (ha/yo‘q):");
+      bot.once("message", async (msg) => {
+        const answer = msg.text.toLowerCase();
+        coupon.requireShare = ["ha", "ha✅"].includes(answer);
+        await sendHtml(
+          chatId,
+          coupon.requireShare
+            ? "✅ Endi foydalanuvchilar kupon olishdan oldin tarqatishlari shart."
+            : "❌ Kupon olishda tarqatish majburiy emas."
+        );
+      });
+    }
+
+    // Xabar yuborish
+    if (data === "admin_broadcast") {
+      await sendHtml(chatId, "✉️ Barcha foydalanuvchilarga yuboriladigan xabarni yozing:");
+      bot.once("message", async (msg) => {
+        const text = msg.text;
+        let count = 0;
+        for (const id of Object.keys(users)) {
+          try {
+            await bot.sendMessage(id, `📢 <b>Admin xabari:</b>\n${text}`, { parse_mode: "HTML" });
+            count++;
+          } catch {}
+        }
+        await sendHtml(chatId, `✅ ${count} ta foydalanuvchiga xabar yuborildi.`);
+      });
+    }
+  }
+});
 
 // === ADMIN PANEL ===
 bot.onText(/\/admin/, async (msg) => {
   if (msg.chat.id !== ADMIN_ID) return;
 
-  await sendHtml(msg.chat.id, "🛠 <b>Admin panel:</b>", [
+  await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
     [{ text: "🆕 Kupon qo‘shish / yangilash", callback_data: "admin_update_coupon" }],
     [{ text: "➕ Tugma qo‘shish", callback_data: "admin_add_button" }],
     [{ text: "📨 Xabar yuborish", callback_data: "admin_broadcast" }],
-    [{ text: "⚙️ Kupon uchun tarqatish sharti", callback_data: "admin_share_condition" }]
+    [{ text: "⚙️ Tarqatish majburiyligi", callback_data: "admin_share_condition" }]
   ]);
-});
-
-
-// === ADMIN CALLBACK ===
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
-  await bot.answerCallbackQuery(query.id);
-
-  if (chatId !== ADMIN_ID) return;
-
-  // === Kuponni yangilash ===
-  if (data === "admin_update_coupon") {
-    await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm bilan yoki rasm holda).");
-    bot.once("message", async (msg) => {
-      if (msg.photo) {
-        const photoId = msg.photo[msg.photo.length - 1].file_id;
-        const caption = msg.caption || "Kupon yangilandi.";
-        coupon.image = photoId;
-        coupon.text = caption;
-      } else {
-        coupon.text = msg.text;
-      }
-      await sendHtml(chatId, "✅ Kupon yangilandi!");
-    });
-  }
-
-  // === Yangi tugma qo‘shish ===
-  if (data === "admin_add_button") {
-    await sendHtml(chatId, "🔘 Tugma nomini yozing:");
-    bot.once("message", async (msg) => {
-      const btnName = msg.text;
-      await sendHtml(chatId, "🔗 Tugma havolasini yozing (yoki callback_data):");
-      bot.once("message", async (msg2) => {
-        const btnLink = msg2.text;
-        coupon.buttons.push([{ text: btnName, url: btnLink }]);
-        await sendHtml(chatId, `✅ Yangi tugma qo‘shildi: ${btnName}`);
-      });
-    });
-  }
-
-  // === Tarqatish shartini o‘rnatish ===
-  if (data === "admin_share_condition") {
-    await sendHtml(
-      chatId,
-      `⚙️ Kelgusi kupon uchun “Tarqatish majburiymi?”\n\n🟢 Ha yoki 🔴 Yo‘q deb yozing:`
-    );
-    bot.once("message", async (msg) => {
-      const answer = msg.text.toLowerCase();
-      coupon.requireShare = ["ha", "ha.", "ha✅"].includes(answer);
-      await sendHtml(
-        chatId,
-        coupon.requireShare
-          ? "✅ Endi foydalanuvchilar kupon olishdan oldin uni tarqatishlari shart."
-          : "❌ Endi kupon olishda tarqatish majburiy emas."
-      );
-    });
-  }
-
-  // === Foydalanuvchilarga xabar yuborish ===
-  if (data === "admin_broadcast") {
-    await sendHtml(chatId, "✉️ Yuboriladigan xabar matnini yozing:");
-    bot.once("message", async (msg) => {
-      const text = msg.text;
-      let count = 0;
-      for (const id of Object.keys(users)) {
-        try {
-          await bot.sendMessage(id, `📢 <b>Admin xabari:</b>\n${text}`, { parse_mode: "HTML" });
-          count++;
-        } catch (e) {}
-      }
-      await sendHtml(chatId, `✅ ${count} ta foydalanuvchiga xabar yuborildi.`);
-    });
-  }
 });
