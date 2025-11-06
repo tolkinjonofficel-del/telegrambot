@@ -1,16 +1,12 @@
 {
-  "name": "strategic-games-bot",
+  "name": "sport-kupon-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for MegaPari and 888Starz strategic games",
+  "description": "AI yordamida sport kuponlar uchun Telegram bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.64.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "node-telegram-bot-api": "^0.61.0"
   }
 }
