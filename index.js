@@ -2,23 +2,26 @@ const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
 const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
-const CHANNEL_USERNAME = "@insayderai"; // obuna tekshirish uchun kanal
+const ADMIN_ID = 7081746531; // 👈 Admin ID
+const CHANNEL_USERNAME = "@insayderai";
 const CHANNEL_LINK = "https://t.me/insayderai";
-const ADMIN_ID = 7081746531; // 👈 o'zingizning Telegram ID'ingizni kiriting
 
-// === Dastur o‘zgaruvchilari ===
+// === O‘zgaruvchilar ===
 let coupon = {
-  text: "Hozircha kupon mavjud emas. Admin tomonidan yangilanadi.",
-  image: null,
-  inviteLimit: 3 // necha do‘st taklif qilgandan keyin kupon beriladi
+  title: "Bugungi AI kuponi",
+  text: "⚽️ Aston Villa vs Makkabi — Aston Villa (-1.5) (1.68 KF)\n⚽️ Boloniya vs Brann — 1-taym Boloniya (1.78 KF)\n⚽️ Braga vs Genk — Har ikkala taymda gol (1.64 KF)\n⚽️ Viktoriya P. vs Fenerbahçe — Uglavoylar <8.5 (1.63 KF)\n<b>UMUMIY KOEFF: 8.12</b>",
+  image: "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457",
+  buttons: [
+    [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }]
+  ]
 };
 
 const bot = new TelegramBot(TOKEN, { polling: true });
-const users = {}; // { userId: { invitedBy, referrals: Set() } }
+const users = {};
 
-console.log("✅ Kupon bot ishga tushdi...");
+console.log("✅ AI Sport Kupon bot ishga tushdi...");
 
-// === Xabar yuborish (HTML format) ===
+// === Yordamchi funksiya ===
 async function sendHtml(chatId, text, buttons = null) {
   const opts = { parse_mode: "HTML" };
   if (buttons) opts.reply_markup = { inline_keyboard: buttons };
@@ -26,50 +29,34 @@ async function sendHtml(chatId, text, buttons = null) {
 }
 
 // === START komandasi ===
-bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const referrerId = match[1];
 
-  // Adminni foydalanuvchilardan xabardor qilish
+  // 🔔 Adminga yangi foydalanuvchi haqida bildirish
   if (userId !== ADMIN_ID) {
-    await bot.sendMessage(ADMIN_ID, `🧍‍♂️ Yangi foydalanuvchi qo‘shildi:\n👤 ${msg.from.first_name}\n🆔 ${userId}`);
+    await bot.sendMessage(
+      ADMIN_ID,
+      `🧍‍♂️ <b>Yangi foydalanuvchi:</b>\n👤 ${msg.from.first_name}\n🆔 ${userId}`,
+      { parse_mode: "HTML" }
+    );
   }
 
-  // Referral tizimi
-  if (referrerId && referrerId !== String(userId)) {
-    if (!users[userId]) users[userId] = { invitedBy: referrerId, referrals: new Set() };
-    if (!users[referrerId]) users[referrerId] = { referrals: new Set() };
-    const referrer = users[referrerId];
-    if (!referrer.referrals.has(userId)) {
-      referrer.referrals.add(userId);
-      const total = referrer.referrals.size;
+  const startText = `
+⚽️ <b>Ushbu bot har kuni futbol o‘yinlariga yangi kupon joylab boradi!</b>
 
-      await bot.sendMessage(
-        referrerId,
-        `👤 <b>1 ta yangi do‘st qo‘shildi!</b>\nSizda hozirda <b>${total}</b> ta taklif bor.`,
-        { parse_mode: "HTML" }
-      );
-    }
-  }
+📊 Eng aniq AI tahlillar, 🎯 professional prognozlar va 💰 ishonchli kuponlar shu yerda!
+`;
 
-  await sendHtml(
-    chatId,
-    `
-⚽️ <b>Ushbu bot har kuni futbol o‘yinlariga yangi kuponlar joylab boradi!</b>
+  const buttons = [
+    [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
+    [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
+  ];
 
-📊 <b>Professional tahlillar</b>, 🎯 <b>aniq prognozlar</b> va 💰 <b>ishonchli kuponlar</b> shu yerda!
-
-👇 Quyidagi tugmalardan foydalaning:
-`,
-    [
-      [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
-      [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }]
-    ]
-  );
+  await sendHtml(chatId, startText, buttons);
 });
 
-// === CALLBACK TIZIMI ===
+// === Callbacklar ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -85,7 +72,7 @@ bot.on("callback_query", async (query) => {
       if (!subscribed) {
         return sendHtml(
           chatId,
-          `❌ <b>Siz kanalga a’zo emassiz!</b>\nKuponni olish uchun avval quyidagi kanalda a’zo bo‘ling 👇`,
+          `❌ <b>Siz kanalga a’zo emassiz!</b>\nKuponni olish uchun quyidagi kanalda a’zo bo‘ling 👇`,
           [
             [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
             [{ text: "✅ A’zo bo‘ldim", callback_data: "get_coupon" }]
@@ -93,99 +80,90 @@ bot.on("callback_query", async (query) => {
         );
       }
 
-      // 2️⃣ Foydalanuvchi necha do‘st taklif qilganini tekshirish
-      const user = users[chatId];
-      const referrals = user?.referrals?.size || 0;
-
-      if (referrals < coupon.inviteLimit) {
-        const remaining = coupon.inviteLimit - referrals;
-        const botInfo = await bot.getMe();
-        const referralLink = `https://t.me/${botInfo.username}?start=${chatId}`;
-
-        return sendHtml(
-          chatId,
-          `👥 <b>Siz hali ${remaining} ta do‘stni taklif qilishingiz kerak!</b>\n\n🗣 Quyidagi havolani do‘stlaringizga yuboring:\n<code>${referralLink}</code>`,
-          [[{ text: "📨 Do‘stni taklif qilish", url: `https://t.me/share/url?url=${referralLink}` }]]
-        );
-      }
-
-      // 3️⃣ Agar hammasi to‘g‘ri bo‘lsa — kupon yuboriladi
-      if (coupon.image) {
-        await bot.sendPhoto(chatId, coupon.image, { caption: coupon.text, parse_mode: "HTML" });
-      } else {
-        await sendHtml(chatId, `🎯 <b>Bugungi kupon:</b>\n\n${coupon.text}`);
-      }
+      // 2️⃣ A’zo bo‘lgan — kuponni ko‘rsatish
+      await bot.sendPhoto(chatId, coupon.image, {
+        caption: `<b>${coupon.title}</b>\n\n${coupon.text}`,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: coupon.buttons }
+      });
     } catch (err) {
-      console.error("❌ Kupon xatosi:", err.message);
-      await sendHtml(chatId, `⚠️ Obunani tekshirishda xato. Keyinroq urinib ko‘ring.`);
+      console.error("❌ Obuna tekshirish xatosi:", err.message);
+      await sendHtml(chatId, "⚠️ Obuna holatini tekshirishda xatolik. Keyinroq urinib ko‘ring.");
     }
+  }
+
+  // === Kuponni tarqatish ===
+  if (data === "share_coupon") {
+    const shareText = encodeURIComponent(
+      `🎯 Eng ishonchli futbol kuponlar! Har kuni yangilanadi ⚽️\nBotga qo‘shil: https://t.me/${(await bot.getMe()).username}`
+    );
+    const shareUrl = `https://t.me/share/url?text=${shareText}`;
+
+    await sendHtml(chatId, "📤 Kuponni do‘stlaringizga yuboring 👇", [
+      [{ text: "🔗 Tarqatish havolasini ulashish", url: shareUrl }]
+    ]);
   }
 });
 
-
 // === ADMIN PANEL ===
 bot.onText(/\/admin/, async (msg) => {
-  const chatId = msg.chat.id;
-  if (chatId !== ADMIN_ID) return;
+  if (msg.chat.id !== ADMIN_ID) return;
 
-  await sendHtml(
-    chatId,
-    "🛠 <b>Admin panel:</b>",
-    [
-      [{ text: "📝 Kuponni yangilash", callback_data: "admin_update_coupon" }],
-      [{ text: "📊 Limitni o‘zgartirish", callback_data: "admin_set_limit" }],
-      [{ text: "📤 Barcha foydalanuvchilarga xabar yuborish", callback_data: "admin_broadcast" }]
-    ]
-  );
+  await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
+    [{ text: "🆕 Kupon qo‘shish / tahrirlash", callback_data: "admin_update_coupon" }],
+    [{ text: "➕ Tugma qo‘shish", callback_data: "admin_add_button" }],
+    [{ text: "📢 Foydalanuvchilarga xabar yuborish", callback_data: "admin_broadcast" }]
+  ]);
 });
 
-// === ADMIN TUGMALAR ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
   await bot.answerCallbackQuery(query.id);
+  if (chatId !== ADMIN_ID) return;
 
-  if (chatId !== ADMIN_ID) return; // faqat admin
-
-  // Kuponni yangilash
+  // === Kuponni yangilash ===
   if (data === "admin_update_coupon") {
-    await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm yuborish ixtiyoriy).");
+    await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm bilan yoki rasm holda).");
     bot.once("message", async (msg) => {
       if (msg.photo) {
         const photoId = msg.photo[msg.photo.length - 1].file_id;
-        const caption = msg.caption || "Kupon matni yo‘q.";
-        coupon = { text: caption, image: photoId, inviteLimit: coupon.inviteLimit };
+        coupon.image = photoId;
+        coupon.text = msg.caption || coupon.text;
       } else {
-        coupon = { ...coupon, text: msg.text };
+        coupon.text = msg.text;
       }
       await sendHtml(chatId, "✅ Kupon yangilandi!");
     });
   }
 
-  // Limitni o‘zgartirish
-  if (data === "admin_set_limit") {
-    await sendHtml(chatId, "⚙️ Yangi limitni kiriting (masalan: 3)");
+  // === Tugma qo‘shish ===
+  if (data === "admin_add_button") {
+    await sendHtml(chatId, "🔘 Yangi tugma matnini kiriting (masalan: Tarqatish havolasi):");
     bot.once("message", async (msg) => {
-      const limit = parseInt(msg.text);
-      if (isNaN(limit)) return sendHtml(chatId, "❌ Noto‘g‘ri raqam!");
-      coupon.inviteLimit = limit;
-      await sendHtml(chatId, `✅ Limit yangilandi! Endi foydalanuvchi ${limit} ta do‘st taklif qilsa kupon oladi.`);
+      const buttonText = msg.text;
+      await sendHtml(chatId, "🔗 Tugma havolasini kiriting (yoki callback_data yozing):");
+      bot.once("message", async (msg2) => {
+        const buttonUrl = msg2.text;
+        coupon.buttons.push([{ text: buttonText, url: buttonUrl }]);
+        await sendHtml(chatId, `✅ Tugma qo‘shildi: ${buttonText}`);
+      });
     });
   }
 
-  // Foydalanuvchilarga xabar yuborish
+  // === Xabar yuborish ===
   if (data === "admin_broadcast") {
-    await sendHtml(chatId, "✉️ Barcha foydalanuvchilarga yuboriladigan xabarni kiriting:");
+    await sendHtml(chatId, "📢 Barcha foydalanuvchilarga yuboriladigan xabarni yozing:");
     bot.once("message", async (msg) => {
       const text = msg.text;
-      let sent = 0;
+      let count = 0;
       for (const id of Object.keys(users)) {
         try {
-          await bot.sendMessage(id, `📢 <b>Admin xabari:</b>\n${text}`, { parse_mode: "HTML" });
-          sent++;
+          await sendHtml(id, `📢 <b>Admin xabari:</b>\n${text}`);
+          count++;
         } catch (e) {}
       }
-      await sendHtml(chatId, `✅ ${sent} ta foydalanuvchiga xabar yuborildi.`);
+      await sendHtml(chatId, `✅ ${count} ta foydalanuvchiga yuborildi.`);
     });
   }
 });
