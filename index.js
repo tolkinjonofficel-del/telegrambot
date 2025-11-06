@@ -40,11 +40,7 @@ bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
       if (total === 10) {
         await bot.sendMessage(
           referrerId,
-          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\n kupon kodi
-1Xbet:
-Melbet:
-WinWin:
-DBbet: <b>XVGZD</b>",
+          "🎉 Tabriklaymiz! Siz 10 ta do‘stni taklif qildingiz!\nSizning kupon kodingiz: <b>XVGZD</b>",
           { parse_mode: "HTML" }
         );
       }
@@ -75,12 +71,12 @@ bot.on("callback_query", async (query) => {
   // === Kupon olish ===
   if (data === "get_coupon") {
     const caption = `
-🎯 <b>100% ishonchli kupon!</b>  
+🎯 <b>99.99% ishonchli kupon!</b>  
 Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
 `;
 
     const imageUrl =
-      "https://ai-ageency.ru/wp-content/uploads/2025/09/low-price.webp";
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSx42j_KVKzgj4x0mWs2PAcVMAEQAwakFY_Sg&s";
 
     await bot.sendPhoto(chatId, imageUrl, {
       caption,
@@ -88,12 +84,12 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "🔵 1xBet", callback_data: "bm_1xbet" },
-            { text: "🟠 Melbet", callback_data: "bm_melbet" },
+            { text: "💎 1xBet", callback_data: "bm_1xbet" },
+            { text: "🔥 Melbet", callback_data: "bm_melbet" },
           ],
           [
-            { text: "🟢 Winwin", callback_data: "bm_winwin" },
-            { text: "🔴 DBbet", callback_data: "bm_dbbet" },
+            { text: "⚡ Winwin", callback_data: "bm_winwin" },
+            { text: "🏆 DBbet", callback_data: "bm_dbbet" },
           ],
         ],
       },
@@ -112,19 +108,19 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
 🏦 <b>${bookmaker}</b> bukmekerni tanladingiz!  
 
 💸 Kupon kodini olish uchun <b>10 ta do‘stni</b> botga taklif qiling.  
-📨 Taklif tugmasini bosing va yuboring 10 ta odam qoshilganidan song avtomatik ravishda kupon kodi yuboriladi👇
+📨 Taklif tugmasini bosing va do‘stlaringizga yuboring 👇
 `;
 
     // Share havolasi (Telegram “Do‘stga ulashish” oynasi uchun)
     const shareText = encodeURIComponent(
-      `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️\n100% ishonchli kuponlarni shu botdan ol! 🔥\n\n👉 ${referralLink}`
+      `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️\n99.99% ishonchli kuponlarni shu botdan ol! 🔥\n\n👉 ${referralLink}`
     );
     const shareUrl = `https://t.me/share/url?url=${referralLink}&text=${shareText}`;
 
     await bot.sendMessage(chatId, text, {
       parse_mode: "HTML",
       reply_markup: {
-        inline_keyboard: [[{ text: "📨 Taklif qilish", url: shareUrl }]],
+        inline_keyboard: [[{ text: "📨 Do‘stni taklif qilish", url: shareUrl }]],
       },
     });
 
