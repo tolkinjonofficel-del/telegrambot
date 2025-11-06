@@ -1,12 +1,12 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
-const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // o'zingizning tokeningizni kiriting
-const ADMIN_ID = 7081746531;
-const CHANNEL_LINK = "https://t.me/insayderai";
+const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // Tokeningizni shu yerga yozing
+const ADMIN_ID = 7081746531; // O'zingizning Telegram ID
+const CHANNEL_LINK = "https://t.me/insayderai"; // Kanal havolasi
 
 const bot = new TelegramBot(TOKEN, { polling: true });
-console.log("✅ Sport Kupon Bot ishga tushdi...");
+console.log("✅ Kupon bot ishga tushdi...");
 
 // === Kupon ma'lumotlari ===
 let coupon = {
@@ -19,14 +19,13 @@ let coupon = {
 <b>UMUMIY KOEFF: 8.12</b>`,
   image: "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457",
   requireShare: false,
-  buttons: [[{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }]],
 };
 
-// === Foydalanuvchilar ===
+// === Foydalanuvchilar bazasi (RAM ichida) ===
 const users = {};
 
 // === Yordamchi funksiya ===
-async function sendHtml(chatId, text, buttons = null) {
+function sendHtml(chatId, text, buttons = null) {
   const opts = { parse_mode: "HTML" };
   if (buttons) opts.reply_markup = { inline_keyboard: buttons };
   return bot.sendMessage(chatId, text, opts);
@@ -40,109 +39,105 @@ bot.onText(/\/start/, async (msg) => {
 
   if (!users[userId]) users[userId] = { username };
 
-  // 🔔 Adminga xabar
+  // Adminga yangi foydalanuvchi haqida xabar
   if (userId !== ADMIN_ID) {
     await bot.sendMessage(
       ADMIN_ID,
-      `🧍‍♂️ <b>Yangi foydalanuvchi:</b>\n👤 ${username}\n🆔 ${userId}`,
+      `🧍‍♂️ <b>Yangi foydalanuvchi qo‘shildi:</b>\n👤 ${username}\n🆔 ${userId}`,
       { parse_mode: "HTML" }
     );
   }
 
-  // Boshlang‘ich menyu
-  await sendHtml(
-    chatId,
-    `
+  const startText = `
 ⚽️ <b>Har kuni yangi futbol kuponlari!</b>
 
 📊 Professional tahlil, 🎯 aniq prognoz va 💰 ishonchli kuponlar shu yerda.
-`,
-    [
-      [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
-      [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }],
-    ]
-  );
+`;
+
+  await sendHtml(chatId, startText, [
+    [{ text: "📢 Kanalga a’zo bo‘lish", url: CHANNEL_LINK }],
+    [{ text: "🎁 Bugungi kuponni olish", callback_data: "get_coupon" }],
+  ]);
 });
 
-// === Bitta yagona CALLBACK listener ===
+// === CALLBACKLAR ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
-  try {
-    // === Kupon olish ===
-    if (data === "get_coupon") {
-      if (coupon.requireShare) {
-        return sendHtml(
-          chatId,
-          "📢 Ushbu kuponni olishdan oldin uni do‘stlaringizga yuboring 👇",
-          [[{ text: "🔗 Kuponni tarqatish", callback_data: "share_coupon" }]]
-        );
-      }
+  // Kupon olish
+  if (data === "get_coupon") {
+    try {
+      await bot.answerCallbackQuery(query.id, { text: "Kupon yuklanmoqda..." });
 
-      // Kuponni yuborish
       await bot.sendPhoto(chatId, coupon.image, {
         caption: `<b>${coupon.title}</b>\n\n${coupon.text}`,
         parse_mode: "HTML",
-        reply_markup: { inline_keyboard: coupon.buttons },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }],
+          ],
+        },
       });
+    } catch (err) {
+      console.error("❌ Kupon yuborishda xato:", err.message);
+      await bot.sendMessage(chatId, "⚠️ Kuponni yuborishda xatolik yuz berdi. Keyinroq urinib ko‘ring.");
     }
+  }
 
-    // === Kuponni tarqatish ===
-    else if (data === "share_coupon") {
+  // Kuponni tarqatish
+  if (data === "share_coupon") {
+    try {
       const botInfo = await bot.getMe();
       const shareText = encodeURIComponent(
         `🎯 Eng ishonchli futbol kuponlar!\nHar kuni yangi tahlillar bilan!\n👉 https://t.me/${botInfo.username}`
       );
       const shareUrl = `https://t.me/share/url?text=${shareText}`;
+      await bot.answerCallbackQuery(query.id);
       await sendHtml(chatId, "📤 Kuponni do‘stlaringizga yuboring 👇", [
         [{ text: "🔗 Tarqatish havolasini ulashish", url: shareUrl }],
       ]);
+    } catch (err) {
+      console.error("❌ Share xatosi:", err.message);
     }
+  }
 
-    // === ADMIN PANEL BOSHQARUVI ===
-    else if (data === "admin_update_coupon" && chatId === ADMIN_ID) {
+  // === ADMIN PANEL BOSHQARUVI ===
+  if (chatId === ADMIN_ID) {
+    if (data === "admin_update_coupon") {
       await sendHtml(chatId, "📝 Kupon matnini yuboring (rasm bilan yoki rasm holda):");
       bot.once("message", async (msg) => {
-        if (msg.photo) {
-          const photoId = msg.photo[msg.photo.length - 1].file_id;
-          coupon.image = photoId;
-          coupon.text = msg.caption || coupon.text;
-        } else {
-          coupon.text = msg.text;
+        try {
+          if (msg.photo) {
+            const photoId = msg.photo[msg.photo.length - 1].file_id;
+            coupon.image = photoId;
+            coupon.text = msg.caption || coupon.text;
+          } else {
+            coupon.text = msg.text;
+          }
+          await sendHtml(chatId, "✅ Kupon yangilandi!");
+        } catch (err) {
+          console.error("Kupon yangilash xatosi:", err.message);
         }
-        await sendHtml(chatId, "✅ Kupon yangilandi!");
       });
     }
 
-    else if (data === "admin_add_button" && chatId === ADMIN_ID) {
-      await sendHtml(chatId, "🔘 Tugma nomini kiriting:");
-      bot.once("message", async (msg) => {
-        const name = msg.text;
-        await sendHtml(chatId, "🔗 Tugma havolasini kiriting (yoki callback_data):");
-        bot.once("message", async (msg2) => {
-          const link = msg2.text;
-          coupon.buttons.push([{ text: name, url: link }]);
-          await sendHtml(chatId, `✅ Yangi tugma qo‘shildi: ${name}`);
-        });
-      });
-    }
-
-    else if (data === "admin_share_condition" && chatId === ADMIN_ID) {
+    if (data === "admin_share_condition") {
       await sendHtml(chatId, "⚙️ Tarqatish majburiy bo‘lsinmi? (ha/yo‘q)");
       bot.once("message", async (msg) => {
-        coupon.requireShare = msg.text.toLowerCase().startsWith("ha");
+        const answer = msg.text.toLowerCase();
+        coupon.requireShare = answer.startsWith("ha");
         await sendHtml(
           chatId,
           coupon.requireShare
             ? "✅ Tarqatish majburiy qilib qo‘yildi."
-            : "❌ Tarqatish majburiy emas endi."
+            : "❌ Endi kupon olish erkin."
         );
       });
     }
 
-    else if (data === "admin_broadcast" && chatId === ADMIN_ID) {
-      await sendHtml(chatId, "✉️ Barcha foydalanuvchilarga yuboriladigan xabarni kiriting:");
+    if (data === "admin_broadcast") {
+      await sendHtml(chatId, "✉️ Foydalanuvchilarga yuboriladigan xabarni yozing:");
       bot.once("message", async (msg) => {
         const text = msg.text;
         let count = 0;
@@ -155,28 +150,14 @@ bot.on("callback_query", async (query) => {
         await sendHtml(chatId, `✅ ${count} ta foydalanuvchiga yuborildi.`);
       });
     }
-
-    else if (data === "open_admin_panel" && chatId === ADMIN_ID) {
-      await sendHtml(chatId, "🧩 <b>Admin panel:</b>", [
-        [{ text: "🆕 Kupon qo‘shish / yangilash", callback_data: "admin_update_coupon" }],
-        [{ text: "➕ Tugma qo‘shish", callback_data: "admin_add_button" }],
-        [{ text: "📨 Xabar yuborish", callback_data: "admin_broadcast" }],
-        [{ text: "⚙️ Tarqatish majburiyligi", callback_data: "admin_share_condition" }],
-      ]);
-    }
-
-    await bot.answerCallbackQuery(query.id);
-  } catch (err) {
-    console.error("❌ Xatolik:", err.message);
   }
 });
 
-// === ADMIN KOMANDASI ===
+// === ADMIN PANEL ===
 bot.onText(/\/admin/, async (msg) => {
   if (msg.chat.id !== ADMIN_ID) return;
   await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
     [{ text: "🆕 Kupon qo‘shish / yangilash", callback_data: "admin_update_coupon" }],
-    [{ text: "➕ Tugma qo‘shish", callback_data: "admin_add_button" }],
     [{ text: "📨 Xabar yuborish", callback_data: "admin_broadcast" }],
     [{ text: "⚙️ Tarqatish majburiyligi", callback_data: "admin_share_condition" }],
   ]);
