@@ -1,36 +1,34 @@
 const TelegramBot = require("node-telegram-bot-api");
-const token = process.env.BOT_TOKEN || "7454675594:AAFywGrnS-9Qo7zeLYOSdhKi1zxP04O1qhg"; // 👈 Tokeningizni qo‘ying
+const token = process.env.BOT_TOKEN || "7454675594:AAFywGrnS-9Qo7zeLYOSdhKi1zxP04O1qhg"; // 👈 o‘zingizning tokeningizni qo‘ying
 
 const bot = new TelegramBot(token, { polling: true });
 
-// Oddiy vaqtinchalik ma’lumotlar bazasi
-const users = {}; // { userId: { referrals: Set([...]), invitedBy: userId } }
+const users = {}; // { userId: { referrals: Set([...]) } }
 
 console.log("✅ Sport kupon bot ishga tushdi...");
 
-// === START komandasi ===
+// === /start komandasi ===
 bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const referrerId = match[1]; // /start <referral_id>
+  const referrerId = match[1];
 
-  // Referral tizimi ishlashi
+  // Referral hisoblash
   if (referrerId && referrerId !== String(userId)) {
     if (!users[userId]) users[userId] = { referrals: new Set(), invitedBy: referrerId };
     if (!users[referrerId]) users[referrerId] = { referrals: new Set() };
     users[referrerId].referrals.add(userId);
 
-    // Agar taklif qilgan foydalanuvchi 10 ta do‘stga yetgan bo‘lsa
+    // 10 ta taklif uchun mukofot
     if (users[referrerId].referrals.size >= 10) {
       await bot.sendMessage(
         referrerId,
-        "🎉 Siz 10 ta do‘st taklif qildingiz!\nKupon kodingiz: <b>XVGZD</b>",
+        "🎉 Siz 10 ta do‘stni taklif qildingiz!\nKupon kodingiz: <b>XVGZD</b>",
         { parse_mode: "HTML" }
       );
     }
   }
 
-  // Start xabari
   const startMessage = `
 ⚽️ <b>Ushbu bot yordamida har kuni bepul kuponlar oling!</b>
 
@@ -38,22 +36,20 @@ bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
 📋 Pastdagi tugmani bosing va ishonchli kupon oling 👇
 `;
 
-  const options = {
+  await bot.sendMessage(chatId, startMessage, {
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [[{ text: "📋 Kupon olish", callback_data: "get_coupon" }]],
     },
-  };
-
-  await bot.sendMessage(chatId, startMessage, options);
+  });
 });
 
-// === Callback bosilganda ===
+// === Callbacklar ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
-  // Kupon olish
+  // === Kupon olish ===
   if (data === "get_coupon") {
     const caption = `
 🎯 <b>99.99% ishonchli kupon!</b>  
@@ -82,9 +78,12 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
     return;
   }
 
-  // Bukmeker tanlanganda
+  // === Bukmeker tanlanganda ===
   if (data.startsWith("bm_")) {
     const bookmaker = data.replace("bm_", "").toUpperCase();
+
+    const botInfo = await bot.getMe();
+    const referralLink = `https://t.me/${botInfo.username}?start=${chatId}`;
 
     const text = `
 🏦 <b>${bookmaker}</b> bukmekerni tanladingiz!  
@@ -93,45 +92,23 @@ Kuponni olish uchun quyidagi bukmekerdan birini tanlang 👇
 📨 Taklif tugmasini bosing va do‘stlaringizga yuboring 👇
 `;
 
-    // Havola yaratish
-    const botInfo = await bot.getMe();
-    const referralLink = `https://t.me/${botInfo.username}?start=${chatId}`;
+    // 🔗 Telegram share havolasi (matn bilan birga)
+    const shareText = encodeURIComponent(
+      `Do‘stim, sen ham biz bilan g‘alaba qil! ⚽️\n99.99% ishonchli kuponlarni shu botdan ol! 🔥\n\n👉 ${referralLink}`
+    );
+    const shareUrl = `https://t.me/share/url?url=${referralLink}&text=${shareText}`;
 
     await bot.sendMessage(chatId, text, {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [
-            { text: "📨 Do‘stni taklif qilish", callback_data: "invite_friends" },
-          ],
+          [{ text: "📨 Do‘stni taklif qilish", url: shareUrl }],
         ],
       },
     });
 
-    // Havolani keyin foydalanish uchun saqlaymiz
+    // Havolani keyinchalik foydalanuvchiga biriktiramiz
     users[chatId] = { ...users[chatId], referralLink };
-    return;
-  }
-
-  // === Do‘stni taklif qilish tugmasi bosilganda ===
-  if (data === "invite_friends") {
-    const referralLink = users[chatId]?.referralLink;
-    if (!referralLink) {
-      await bot.sendMessage(chatId, "⚠️ Taklif havolasini topib bo‘lmadi. Iltimos, qaytadan boshlang /start");
-      return;
-    }
-
-    const inviteMessage = `
-🤝 <b>Do‘stingizni taklif qiling!</b>
-
-📲 Sizning taklif havolangiz:
-<code>${referralLink}</code>
-
-🗣 Do‘stlaringizga yuboring va ularga shunday yozing:
-<i>“Do‘stim, sen ham biz bilan g‘alaba qil! Kuponni hoziroq ol!”</i>
-`;
-
-    await bot.sendMessage(chatId, inviteMessage, { parse_mode: "HTML" });
     return;
   }
 });
