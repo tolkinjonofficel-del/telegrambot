@@ -3,7 +3,7 @@ const TelegramBot = require("node-telegram-bot-api");
 // === Sozlamalar ===
 const TOKEN = process.env.BOT_TOKEN || "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw";
 const REQUIRED_INVITES = 10;
-const COUPON_CODE = "XVGZD";
+const COUPON_CODE = "NDNH2";
 const IMAGE_URL = "https://www.pymnts.com/wp-content/uploads/2024/04/Meta-AI-tech.png?w=457";
 
 // === Botni ishga tushiramiz ===
@@ -66,7 +66,7 @@ bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
 
   // Boshlang'ich xabar
   await sendHtml(chatId, `
-⚽️ <b>Ushbu bot yordamida har kuni bepul kuponlar oling!</b>
+⚽️ <b>Ushbu bot yordamida har kuni FUTBOL oyinlariga bepul kuponlar oling!</b>
 
 💡 <b>Ishonchli kuponlar</b> har kuni AI yordamida tayyorlanadi.  
 📋 Pastdagi tugmani bosing va ishonchli kupon oling 👇
@@ -124,8 +124,8 @@ Kuponni olish uchun bukmekerni tanlang 👇`,
       const text = `
 🏦 <b>${bookmaker}</b> bukmekerni tanladingiz!
 
-💸 Kupon kodini olish uchun <b>${REQUIRED_INVITES} ta do'stni</b> taklif qiling.  
-📨 Quyidagi tugmani bosing va ulashish oynasidan do'stlaringizga yuboring 👇
+💸 FUTBOL oyinlariga ishonchli Kupon  olish uchun <b>${REQUIRED_INVITES} ta do'stni</b> taklif qiling.  
+10 ta odam taklif qilinganda bot avtomatik KUPON yuboradi va galaba qiling 📨 Quyidagi tugmani bosing va ulashish oynasidan do'stlaringizga yuboring 👇
 `;
 
       const shareText = encodeURIComponent(
