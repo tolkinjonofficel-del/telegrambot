@@ -1,8 +1,8 @@
 const TelegramBot = require("node-telegram-bot-api");
 
 // === Sozlamalar ===
-const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // Tokeningizni kiriting
-const ADMIN_ID = 7081746531; // Admin Telegram ID
+const TOKEN = "7454675594:AAFYU-QHScmLm_nykJi37eJwjSvSeRu33Nw"; // Tokeningizni yozing
+const ADMIN_ID = 7081746531; // Sizning Telegram ID
 const CHANNEL_LINK = "https://t.me/insayderai"; // Kanal havolasi
 
 const bot = new TelegramBot(TOKEN, { polling: true });
@@ -12,39 +12,40 @@ console.log("✅ Sport Kupon Bot ishga tushdi...");
 let coupon = {
   title: "🎯 Bugungi AI Futbol Kuponi 🎯",
   text: `
-<b>📅 07 Noyabr — Yevropa Ligasi</b>
+📅 <b>07 Noyabr — Yevropa Ligasi</b>
 
 ⚽ <b>Aston Villa</b> vs <b>Makkabi</b>  
-➡️ Tanlov: Aston Villa (-1.5)  
-💸 Koef: 1.68  
+➡️ <i>Tanlov:</i> Aston Villa (-1.5)  
+💸 <i>Koef:</i> 1.68  
 
 ⚽ <b>Boloniya</b> vs <b>Brann</b>  
-➡️ Tanlov: 1-taymda Boloniya g‘alaba  
-💸 Koef: 1.78  
+➡️ <i>Tanlov:</i> 1-taymda Boloniya g‘alaba  
+💸 <i>Koef:</i> 1.78  
 
 ⚽ <b>Braga</b> vs <b>Genk</b>  
-➡️ Tanlov: Har ikkala taymda gol bo‘ladi  
-💸 Koef: 1.64  
+➡️ <i>Tanlov:</i> Har ikkala taymda gol bo‘ladi  
+💸 <i>Koef:</i> 1.64  
 
 ⚽ <b>Viktoriya P.</b> vs <b>Fenerbahçe</b>  
-➡️ Tanlov: Uglavoylar jami <8.5  
-💸 Koef: 1.63  
+➡️ <i>Tanlov:</i> Uglavoylar jami <8.5  
+💸 <i>Koef:</i> 1.63  
 
-<b>🔥 Umumiy koeffitsient: 8.12</b>
+🔥 <b>Umumiy koeffitsient:</b> 8.12  
 
-🧠 Bu kupon sun’iy intellekt tahliliga asoslangan!
+🧠 Bu kupon <b>AI tahlili</b> asosida tuzilgan!  
 💰 Omad siz tomonda bo‘lsin!
 `,
   requireShare: false,
 };
 
+// === Foydalanuvchilar bazasi ===
 const users = {};
 
-// === Foydalanuvchiga xabar yuborish ===
-function sendHtml(chatId, text, buttons = null) {
-  const opts = { parse_mode: "HTML" };
-  if (buttons) opts.reply_markup = { inline_keyboard: buttons };
-  return bot.sendMessage(chatId, text, opts);
+// === Xabar yuborish yordamchisi ===
+async function sendHtml(chatId, text, buttons = null) {
+  const options = { parse_mode: "HTML" };
+  if (buttons) options.reply_markup = { inline_keyboard: buttons };
+  return bot.sendMessage(chatId, text, options);
 }
 
 // === START komandasi ===
@@ -55,7 +56,7 @@ bot.onText(/\/start/, async (msg) => {
 
   if (!users[userId]) users[userId] = { username };
 
-  // Adminni xabardor qilish
+  // Adminni yangi foydalanuvchidan xabardor qilish
   if (userId !== ADMIN_ID) {
     await bot.sendMessage(
       ADMIN_ID,
@@ -64,6 +65,7 @@ bot.onText(/\/start/, async (msg) => {
     );
   }
 
+  // Start menyu
   const startText = `
 ⚽️ <b>Har kuni yangi futbol kuponlari!</b>
 
@@ -84,9 +86,11 @@ bot.on("callback_query", async (query) => {
   try {
     // === Kupon olish ===
     if (data === "get_coupon") {
-      await bot.answerCallbackQuery(query.id, { text: "Kupon tayyorlanmoqda..." });
+      await bot.answerCallbackQuery(query.id, { text: "Kupon yuklanmoqda..." });
 
-      await sendHtml(chatId, `${coupon.title}\n${coupon.text}`, [
+      const kuponMatn = `${coupon.title}\n\n${coupon.text}`;
+
+      await sendHtml(chatId, kuponMatn, [
         [{ text: "📨 Kuponni tarqatish", callback_data: "share_coupon" }],
       ]);
     }
@@ -107,7 +111,7 @@ bot.on("callback_query", async (query) => {
     // === ADMIN PANEL ===
     if (chatId === ADMIN_ID) {
       if (data === "admin_update_coupon") {
-        await sendHtml(chatId, "📝 Yangi kupon matnini yuboring (HTML formatda).");
+        await sendHtml(chatId, "📝 Yangi kupon matnini yuboring (HTML formatda):");
         bot.once("message", async (msg) => {
           coupon.text = msg.text;
           await sendHtml(chatId, "✅ Kupon yangilandi!");
@@ -115,7 +119,7 @@ bot.on("callback_query", async (query) => {
       }
 
       if (data === "admin_broadcast") {
-        await sendHtml(chatId, "✉️ Foydalanuvchilarga yuboriladigan xabarni kiriting:");
+        await sendHtml(chatId, "✉️ Barcha foydalanuvchilarga yuboriladigan xabarni yozing:");
         bot.once("message", async (msg) => {
           const text = msg.text;
           let count = 0;
@@ -135,7 +139,7 @@ bot.on("callback_query", async (query) => {
   }
 });
 
-// === ADMIN PANEL KOMANDASI ===
+// === ADMIN PANEL ===
 bot.onText(/\/admin/, async (msg) => {
   if (msg.chat.id !== ADMIN_ID) return;
   await sendHtml(msg.chat.id, "🧩 <b>Admin panel:</b>", [
