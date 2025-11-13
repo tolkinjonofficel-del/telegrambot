@@ -2,10 +2,6 @@ import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from dotenv import load_dotenv
-
-# Environment o'zgaruvchilarini yuklash
-load_dotenv()
 
 # Loggerni sozlash
 logging.basicConfig(
@@ -14,29 +10,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Bot tokeni
-TOKEN = os.getenv('8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g')
+# Bot tokeni - to'g'ridan-to'g'ri qo'ying (vaqtincha)
+TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"  # Bu yerga o'z tokeningizni qo'ying
 
-# Bukmekerlar ma'lumotlari (aslida bazadan foydalaning)
+# Token mavjudligini tekshirish
+if TOKEN == "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g":
+    print("❌ ILTIMOS: TOKEN ni o'zgartiring!")
+    print("BotFather dan token oling va TOKEN o'zgaruvchisiga qo'ying")
+    exit(1)
+
+print(f"✅ Bot tokeni mavjud: {TOKEN[:10]}...")
+
+# Bukmekerlar ma'lumotlari
 bookmakers_data = {
     '1xbet': {
-        'apk_link': os.getenv('1XBET_APK_LINK', 'https://example.com/1xbet.apk'),
-        'registration_link': os.getenv('1XBET_REG_LINK', 'https://1xbet.com/registration'),
+        'apk_link': 'https://1xbet.com/mobile/apk',
+        'registration_link': 'https://1xbet.com/registration',
         'mavjud': True
     },
     'dbbet': {
-        'apk_link': os.getenv('DBBET_APK_LINK', 'https://example.com/dbbet.apk'),
-        'registration_link': os.getenv('DBBET_REG_LINK', 'https://dbbet.com/registration'),
+        'apk_link': 'https://dbbet.com/mobile/apk', 
+        'registration_link': 'https://dbbet.com/registration',
         'mavjud': True
     },
     'melbet': {
-        'apk_link': os.getenv('MELBET_APK_LINK', 'https://example.com/melbet.apk'),
-        'registration_link': os.getenv('MELBET_REG_LINK', 'https://melbet.com/registration'),
+        'apk_link': 'https://melbet.com/mobile/apk',
+        'registration_link': 'https://melbet.com/registration',
         'mavjud': True
     }
 }
 
-# Foydalanuvchi referallari (aslida bazadan foydalaning)
+# Foydalanuvchi referallari
 user_referrals = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -190,7 +194,6 @@ async def signal_sozovi(query, user_id):
     referal_soni = user_referrals.get(user_id, 0)
     
     if referal_soni >= 20:
-        # Foydalanuvchi yetarli referalga ega, signalga yo'naltirish
         text = "🎯 Signal sahifasiga yo'naltirilmoqdasiz..."
         keyboard = [
             [InlineKeyboardButton("📡 Signal olish", url="https://www.signal7.digital")],
@@ -199,7 +202,6 @@ async def signal_sozovi(query, user_id):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text, reply_markup=reply_markup)
     else:
-        # Yetarli referal yo'q
         await signal_variantlari(query, user_id)
 
 async def referal_havola(query, user_id):
@@ -299,7 +301,6 @@ async def referal_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             referal_bergan_id = int(args[0][3:])
             referal_olgan_id = update.message.from_user.id
             
-            # Referal bergan foydalanuvchi hisobini oshirish
             if referal_bergan_id in user_referrals:
                 user_referrals[referal_bergan_id] += 1
             else:
@@ -312,36 +313,23 @@ async def referal_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         except ValueError:
             pass
     
-    # Asosiy menyuni ko'rsatish
     await start(update, context)
 
 def main() -> None:
     """Botni ishga tushirish"""
-    # Application yaratish
-    application = Application.builder().token(TOKEN).build()
+    try:
+        application = Application.builder().token(TOKEN).build()
 
-    # Handlerlarni qo'shish
-    application.add_handler(CommandHandler("start", referal_start))
-    application.add_handler(CallbackQueryHandler(tugma_handler))
+        # Handlerlarni qo'shish
+        application.add_handler(CommandHandler("start", referal_start))
+        application.add_handler(CallbackQueryHandler(tugma_handler))
 
-    # Botni ishga tushirish
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        # Railwayda ishlayapti - webhook dan foydalanish
-        port = int(os.getenv('PORT', 8443))
-        webhook_url = os.getenv('RAILWAY_STATIC_URL')
-        
-        if webhook_url:
-            application.run_webhook(
-                listen="0.0.0.0",
-                port=port,
-                url_path=TOKEN,
-                webhook_url=f"{webhook_url}/{TOKEN}"
-            )
-        else:
-            application.run_polling()
-    else:
-        # Lokalda ishlayapti - polling dan foydalanish
+        print("🤖 Bot ishga tushmoqda...")
         application.run_polling()
+        
+    except Exception as e:
+        print(f"❌ Xato: {e}")
+        print("Token noto'g'ri yoki mavjud emas")
 
 if __name__ == '__main__':
     main()
