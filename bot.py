@@ -15,7 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Bot tokeni
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TOKEN = os.getenv('8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g')
 
 # Bukmekerlar ma'lumotlari (aslida bazadan foydalaning)
 bookmakers_data = {
