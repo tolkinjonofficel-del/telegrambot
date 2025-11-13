@@ -1,335 +1,179 @@
 import os
-import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Loggerni sozlash
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# Bot tokeni - o'z tokeningizni qo'ying
+TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"
 
-# Bot tokeni - to'g'ridan-to'g'ri qo'ying (vaqtincha)
-TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"  # Bu yerga o'z tokeningizni qo'ying
+# Foydalanuvchi ma'lumotlari (vaqtincha)
+users = {}
 
-# Token mavjudligini tekshirish
-if TOKEN == "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g":
-    print("❌ ILTIMOS: TOKEN ni o'zgartiring!")
-    print("8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g")
-    exit(1)
-
-print(f"✅ Bot tokeni mavjud: {TOKEN[:10]}...")
-
-# Bukmekerlar ma'lumotlari
-bookmakers_data = {
-    '1xbet': {
-        'apk_link': 'https://1xbet.com/mobile/apk',
-        'registration_link': 'https://1xbet.com/registration',
-        'mavjud': True
-    },
-    'dbbet': {
-        'apk_link': 'https://dbbet.com/mobile/apk', 
-        'registration_link': 'https://dbbet.com/registration',
-        'mavjud': True
-    },
-    'melbet': {
-        'apk_link': 'https://melbet.com/mobile/apk',
-        'registration_link': 'https://melbet.com/registration',
-        'mavjud': True
-    }
-}
-
-# Foydalanuvchi referallari
-user_referrals = {}
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/start buyrug'i berilganda asosiy menyuni chiqarish"""
-    welcome_text = """
-🎯 *Apple of Fortune Botiga Xush Kelibsiz!*
-
-🍎 Bu bot orqali siz:
-• Ishonchli signal va strategiyalar olasiz
-• Daromad olishni boshlashingiz mumkin
-• Referal orqali qo'shimcha imkoniyatlarga ega bo'lasiz
-
-Quyidagi tugmalardan birini tanlang:"""
-    
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start komandasi"""
+    user = update.effective_user
     keyboard = [
-        [InlineKeyboardButton("💰 Daromad olishni boshlash", callback_data="daromad_boshlash")],
-        [InlineKeyboardButton("📡 Signal olish", callback_data="signal_olish")],
-        [InlineKeyboardButton("📚 Qo'llanma", callback_data="qollanma")],
-        [InlineKeyboardButton("🎁 Bonus", callback_data="bonus")]
+        [InlineKeyboardButton("💰 Daromad olish", callback_data="earn")],
+        [InlineKeyboardButton("📡 Signal olish", callback_data="signal")],
+        [InlineKeyboardButton("📚 Yordam", callback_data="help")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        welcome_text, 
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        f"Salom {user.first_name}! 👋\n"
+        "Apple of Fortune botiga xush kelibsiz!\n\n"
+        "Quyidagi tugmalardan foydalaning:",
+        reply_markup=reply_markup
     )
 
-async def tugma_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Tugma bosilganda ishlovchi"""
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tugmalarni boshqarish"""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
     
-    if query.data == "daromad_boshlash":
-        await bukmekerlar_royhati(query)
+    if query.data == "earn":
+        await show_bookmakers(query)
     
-    elif query.data in ["1xbet", "dbbet", "melbet"]:
-        await bukmeker_tafsilotlari(query, query.data)
+    elif query.data == "signal":
+        await show_signal_options(query, user_id)
     
-    elif query.data == "signal_olish":
-        await signal_variantlari(query, user_id)
+    elif query.data == "help":
+        await show_help(query)
     
-    elif query.data == "signal_hozir":
-        await signal_sozovi(query, user_id)
+    elif query.data == "back":
+        await start_callback(query)
     
-    elif query.data == "referal_yuborish":
-        await referal_havola(query, user_id)
-    
-    elif query.data == "qollanma":
-        await qollanma_yuborish(query)
-    
-    elif query.data == "bonus":
-        await bonus_yuborish(query)
-    
-    elif query.data == "asosiy_menyu":
-        await asosiy_menyuga_qaytish(query)
+    elif query.data in ["1xbet", "melbet", "dbbet"]:
+        await show_bookmaker_info(query, query.data)
 
-async def bukmekerlar_royhati(query):
-    """Bukmekerlar ro'yxatini ko'rsatish"""
-    text = "📊 Daromad olishni boshlash uchun bukmekerni tanlang:"
-    
+async def show_bookmakers(query):
+    """Bukmekerlar ro'yxati"""
     keyboard = [
         [InlineKeyboardButton("1xBet", callback_data="1xbet")],
-        [InlineKeyboardButton("DBBet", callback_data="dbbet")],
         [InlineKeyboardButton("MelBet", callback_data="melbet")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="asosiy_menyu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup)
-
-async def bukmeker_tafsilotlari(query, bukmeker):
-    """Tanlangan bukmeker uchun APK va ro'yxatdan o'tish havolalarini yuborish"""
-    data = bookmakers_data.get(bukmeker)
-    
-    if not data:
-        await query.edit_message_text("❌ Ma'lumot topilmadi.")
-        return
-    
-    if not data['mavjud']:
-        await query.edit_message_text("⏳ Uzur, hozircha fayllar ishlovda. Iltimos, keyinroq urinib ko'ring.")
-        return
-    
-    bukmeker_nomlari = {
-        '1xbet': '1xBet',
-        'dbbet': 'DBBet', 
-        'melbet': 'MelBet'
-    }
-    
-    text = f"""
-📱 *{bukmeker_nomlari[bukmeker]}*
-
-⬇️ APK faylini yuklab olish:
-{data['apk_link']}
-
-📝 Ro'yxatdan o'tish:
-{data['registration_link']}
-
-💡 Eslatma: Ro'yxatdan o'tgach, daromad olishni boshlashingiz mumkin!"""
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="daromad_boshlash")],
-        [InlineKeyboardButton("🏠 Bosh menyu", callback_data="asosiy_menyu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def signal_variantlari(query, user_id):
-    """Signal variantlarini ko'rsatish"""
-    referal_soni = user_referrals.get(user_id, 0)
-    
-    if referal_soni == 0:
-        talab_qilinadigan = 1
-        signal_mavjud = False
-    elif referal_soni < 5:
-        talab_qilinadigan = 5
-        signal_mavjud = False
-    elif referal_soni < 20:
-        talab_qilinadigan = 20
-        signal_mavjud = False
-    else:
-        talab_qilinadigan = 0
-        signal_mavjud = True
-    
-    text = f"""
-📡 *Ishonchli g'alaba qiling! Signalni hoziroq oling!*
-
-Sizning referallaringiz: {referal_soni} ta"""
-    
-    keyboard = []
-    
-    if signal_mavjud:
-        keyboard.append([InlineKeyboardButton("🚀 Signal NOW", callback_data="signal_hozir")])
-    else:
-        text += f"\n\n🔒 Signal olish uchun sizga {talab_qilinadigan - referal_soni} ta referal kerak!"
-    
-    keyboard.extend([
-        [InlineKeyboardButton("📤 Referal yuborish", callback_data="referal_yuborish")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="asosiy_menyu")]
-    ])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def signal_sozovi(query, user_id):
-    """Signal so'rovini qayta ishlash"""
-    referal_soni = user_referrals.get(user_id, 0)
-    
-    if referal_soni >= 20:
-        text = "🎯 Signal sahifasiga yo'naltirilmoqdasiz..."
-        keyboard = [
-            [InlineKeyboardButton("📡 Signal olish", url="https://www.signal7.digital")],
-            [InlineKeyboardButton("🔙 Orqaga", callback_data="signal_olish")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup)
-    else:
-        await signal_variantlari(query, user_id)
-
-async def referal_havola(query, user_id):
-    """Foydalanuvchining referal havolasini yuborish"""
-    bot_username = (await query.message._bot.get_me()).username
-    referal_havola = f"https://t.me/{bot_username}?start=ref{user_id}"
-    
-    text = f"""
-📤 *Referal havolangiz:*
-
-`{referal_havola}`
-
-👥 Do'stlaringizni taklif qiling va signal olish imkoniyatiga ega bo'ling!
-
-📊 Sizning referallaringiz: {user_referrals.get(user_id, 0)} ta"""
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="signal_olish")],
-        [InlineKeyboardButton("🏠 Bosh menyu", callback_data="asosiy_menyu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def qollanma_yuborish(query):
-    """Foydalanuvchi qo'llanmasini yuborish"""
-    text = """
-📚 *Qo'llanma*
-
-🎮 *Apple of Fortune o'yini qanday o'ynaladi:*
-1. Bukmeker akkauntingizga kiring
-2. Apple of Fortune o'yinini toping
-3. Bizning signallarimiz asosida stavka qo'ying
-4. G'alaba qozoning va daromad oling!
-
-💡 *Maslahatlar:*
-- Har doim risklarni boshqaring
-- Kichik summadan boshlang
-- Signallarni diqqat bilan kuzating"""
-    
-    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="asosiy_menyu")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def bonus_yuborish(query):
-    """Bonus ma'lumotlarini yuborish"""
-    text = """
-🎁 *Bonuslar*
-
-✨ *Ajoyib takliflar sizni kutmoqda:*
-
-🏆 *Yangilangan bonuslar:*
-- Yangi ro'yxatdan o'tganlar uchun +100% bonus
-- Har bir do'stingiz uchun 50% bonus
-- Haftalik cashback 10% gacha
-
-📈 *Maxsus taklif:*
-Har 5 ta muvaffaqiyatli signaldan keyin maxsus bonus!"""
-    
-    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="asosiy_menyu")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def asosiy_menyuga_qaytish(query):
-    """Asosiy menyuga qaytish"""
-    welcome_text = """
-🎯 *Apple of Fortune Botiga Xush Kelibsiz!*
-
-🍎 Bu bot orqali siz:
-• Ishonchli signal va strategiyalar olasiz
-• Daromad olishni boshlashingiz mumkin
-• Referal orqali qo'shimcha imkoniyatlarga ega bo'lasiz
-
-Quyidagi tugmalardan birini tanlang:"""
-    
-    keyboard = [
-        [InlineKeyboardButton("💰 Daromad olishni boshlash", callback_data="daromad_boshlash")],
-        [InlineKeyboardButton("📡 Signal olish", callback_data="signal_olish")],
-        [InlineKeyboardButton("📚 Qo'llanma", callback_data="qollanma")],
-        [InlineKeyboardButton("🎁 Bonus", callback_data="bonus")]
+        [InlineKeyboardButton("DBBet", callback_data="dbbet")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        welcome_text, 
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        "💰 Daromad olish uchun bukmekerni tanlang:",
+        reply_markup=reply_markup
     )
 
-async def referal_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Referal havolasi orqali kelgan foydalanuvchilarni qayta ishlash"""
-    args = context.args
-    if args and args[0].startswith('ref'):
-        try:
-            referal_bergan_id = int(args[0][3:])
-            referal_olgan_id = update.message.from_user.id
-            
-            if referal_bergan_id in user_referrals:
-                user_referrals[referal_bergan_id] += 1
-            else:
-                user_referrals[referal_bergan_id] = 1
-            
-            await update.message.reply_text(
-                "✅ Siz do'stingiz orqali botga qo'shildingiz! "
-                "Endi siz ham referal orqali signal olishingiz mumkin."
-            )
-        except ValueError:
-            pass
+async def show_bookmaker_info(query, bookmaker):
+    """Bukmeker ma'lumotlari"""
+    bookmaker_info = {
+        "1xbet": {
+            "name": "1xBet",
+            "apk": "https://1xbet.com/download",
+            "reg": "https://1xbet.com/registration"
+        },
+        "melbet": {
+            "name": "MelBet", 
+            "apk": "https://melbet.com/download",
+            "reg": "https://melbet.com/registration"
+        },
+        "dbbet": {
+            "name": "DBBet",
+            "apk": "https://dbbet.com/download", 
+            "reg": "https://dbbet.com/registration"
+        }
+    }
     
-    await start(update, context)
+    info = bookmaker_info[bookmaker]
+    text = f"""
+📱 {info['name']}
 
-def main() -> None:
-    """Botni ishga tushirish"""
-    try:
-        application = Application.builder().token(TOKEN).build()
+📲 APK yuklab olish: {info['apk']}
+📝 Ro'yxatdan o'tish: {info['reg']}
 
-        # Handlerlarni qo'shish
-        application.add_handler(CommandHandler("start", referal_start))
-        application.add_handler(CallbackQueryHandler(tugma_handler))
+💡 Ro'yxatdan o'tgach, daromad olishni boshlashingiz mumkin!"""
+    
+    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="earn")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
-        print("🤖 Bot ishga tushmoqda...")
-        application.run_polling()
-        
-    except Exception as e:
-        print(f"❌ Xato: {e}")
-        print("Token noto'g'ri yoki mavjud emas")
+async def show_signal_options(query, user_id):
+    """Signal variantlari"""
+    # Foydalanuvchi referallar soni
+    ref_count = users.get(user_id, {}).get('referrals', 0)
+    
+    if ref_count >= 20:
+        signal_text = "🚀 Signal NOW - Bosing va signal oling!"
+        signal_button = [InlineKeyboardButton("📡 Signal NOW", url="https://signal7.digital")]
+    elif ref_count >= 5:
+        signal_text = f"🔒 Signal uchun {20 - ref_count} ta referal kerak"
+        signal_button = [InlineKeyboardButton("📤 Referal olish", callback_data="get_ref")]
+    else:
+        signal_text = f"🔒 Signal uchun {5 - ref_count} ta referal kerak" 
+        signal_button = [InlineKeyboardButton("📤 Referal olish", callback_data="get_ref")]
+    
+    text = f"""
+📡 Signal olish
 
-if __name__ == '__main__':
+{signal_text}
+Sizning referallaringiz: {ref_count} ta"""
+    
+    keyboard = []
+    if ref_count >= 20:
+        keyboard.append(signal_button)
+    
+    keyboard.extend([
+        [InlineKeyboardButton("📤 Referal havola", callback_data="ref_link")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
+    ])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup)
+
+async def show_help(query):
+    """Yordam menyusi"""
+    text = """
+📚 Botdan foydalanish:
+
+💰 Daromad olish - bukmekerlar orqali
+📡 Signal olish - referal sistemasi orqali  
+📤 Referal - do'stlaringizni taklif qiling
+
+Har 20 ta referal uchun 1 ta signal!"""
+    
+    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(text, reply_markup=reply_markup)
+
+async def start_callback(query):
+    """Callback uchun start"""
+    user = query.from_user
+    keyboard = [
+        [InlineKeyboardButton("💰 Daromad olish", callback_data="earn")],
+        [InlineKeyboardButton("📡 Signal olish", callback_data="signal")],
+        [InlineKeyboardButton("📚 Yordam", callback_data="help")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        f"Salom {user.first_name}! 👋\n"
+        "Apple of Fortune botiga xush kelibsiz!\n\n"
+        "Quyidagi tugmalardan foydalaning:",
+        reply_markup=reply_markup
+    )
+
+def main():
+    """Asosiy dastur"""
+    # Botni yaratish
+    app = Application.builder().token(TOKEN).build()
+    
+    # Handlerlar
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
+    # Botni ishga tushirish
+    print("Bot ishga tushdi...")
+    app.run_polling()
+
+if __name__ == "__main__":
     main()
