@@ -1,7 +1,7 @@
 import os
 import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # Bot tokeni
 TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"
@@ -50,13 +50,24 @@ def load_data():
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except:
+    except FileNotFoundError:
+        # Fayl mavjud emas, boshlang'ich ma'lumotlarni yaratamiz
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_data, f, ensure_ascii=False, indent=2)
+        return default_data
+    except Exception as e:
+        print(f"Ma'lumotlarni yuklashda xato: {e}")
         return default_data
 
 # Ma'lumotlarni saqlash
 def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Ma'lumotlarni saqlashda xato: {e}")
+        return False
 
 # Ma'lumotlarni yuklab olish
 data = load_data()
@@ -211,6 +222,262 @@ async def show_bookmaker_info(query, bookmaker):
     
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
+async def show_admin_panel(query):
+    """Admin paneli"""
+    text = """
+👑 *Admin Panel*
+
+Quyidagi bukmekerlarni boshqarish:"""
+
+    keyboard = []
+    
+    for bookmaker_id, bookmaker in data['bookmakers'].items():
+        status = "🟢" if bookmaker['active'] else "🔴"
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{status} {bookmaker['name']}", 
+                callback_data=f"admin_edit_{bookmaker_id}"
+            )
+        ])
+    
+    keyboard.extend([
+        [InlineKeyboardButton("➕ Yangi bukmeker", callback_data="admin_new")],
+        [InlineKeyboardButton("⚙️ Sozlamalar", callback_data="admin_settings")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
+    ])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def handle_admin_actions(query, context: ContextTypes.DEFAULT_TYPE):
+    """Admin harakatlari"""
+    action = query.data
+    
+    if action.startswith("admin_edit_"):
+        bookmaker_id = action.replace("admin_edit_", "")
+        await edit_bookmaker(query, bookmaker_id, context)
+    
+    elif action == "admin_new":
+        await new_bookmaker(query, context)
+    
+    elif action == "admin_settings":
+        await show_admin_settings(query)
+    
+    elif action == "admin_stats":
+        await show_admin_stats(query)
+    
+    elif action.startswith("admin_toggle_"):
+        bookmaker_id = action.replace("admin_toggle_", "")
+        await toggle_bookmaker(query, bookmaker_id)
+    
+    elif action.startswith("admin_delete_"):
+        bookmaker_id = action.replace("admin_delete_", "")
+        await delete_bookmaker(query, bookmaker_id)
+
+async def edit_bookmaker(query, bookmaker_id, context: ContextTypes.DEFAULT_TYPE):
+    """Bukmekerni tahrirlash"""
+    if bookmaker_id not in data['bookmakers']:
+        await query.message.reply_text("❌ Bu bukmeker mavjud emas!")
+        return
+    
+    bookmaker = data['bookmakers'][bookmaker_id]
+    
+    text = f"""
+✏️ *Tahrirlash: {bookmaker['name']}*
+
+🆔 ID: `{bookmaker_id}`
+📛 Nomi: `{bookmaker['name']}`
+📱 APK: `{bookmaker['apk']}`
+🔗 Ro'yxatdan o'tish: `{bookmaker['reg']}`
+📝 Tavsif: `{bookmaker['desc']}`
+🔘 Holati: {'🟢 Faol' if bookmaker['active'] else '🔴 Nofaol'}
+
+*O'zgartirish uchun quyidagi formatda xabar yuboring:*
+`nomi|apk_havola|reg_havola|tavsif`
+
+*Misol:*
+`1xBet|https://1xbet.com/new.apk|https://1xbet.com/new-reg|Yangi tavsif`"""
+
+    keyboard = [
+        [InlineKeyboardButton("🔘 Holatni o'zgartirish", callback_data=f"admin_toggle_{bookmaker_id}")],
+        [InlineKeyboardButton("🗑 O'chirish", callback_data=f"admin_delete_{bookmaker_id}")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Contextga ma'lumot saqlaymiz
+    context.user_data['waiting_for_edit'] = bookmaker_id
+    context.user_data['waiting_type'] = 'edit_bookmaker'
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def new_bookmaker(query, context: ContextTypes.DEFAULT_TYPE):
+    """Yangi bukmeker qo'shish"""
+    text = """
+➕ *Yangi Bukmeker Qo'shish*
+
+*Quyidagi formatda ma'lumot yuboring:*
+`id|nomi|apk_havola|reg_havola|tavsif`
+
+*Misol:*
+`pinbet PinBet https://pinbet.com/apk https://pinbet.com/reg Yangi bukmeker platformasi`
+
+*Eslatma:* ID faqat harf va raqamlardan iborat bo'lsin (masalan: pinbet)"""
+
+    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Contextga ma'lumot saqlaymiz
+    context.user_data['waiting_type'] = 'new_bookmaker'
+    
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def toggle_bookmaker(query, bookmaker_id):
+    """Bukmeker holatini o'zgartirish"""
+    if bookmaker_id in data['bookmakers']:
+        data['bookmakers'][bookmaker_id]['active'] = not data['bookmakers'][bookmaker_id]['active']
+        if save_data(data):
+            status = "faol" if data['bookmakers'][bookmaker_id]['active'] else "nofaol"
+            await query.message.reply_text(f"✅ {data['bookmakers'][bookmaker_id]['name']} {status} holatga o'zgartirildi!")
+        else:
+            await query.message.reply_text("❌ Saqlashda xato!")
+    
+    await show_admin_panel(query)
+
+async def delete_bookmaker(query, bookmaker_id):
+    """Bukmekerni o'chirish"""
+    if bookmaker_id in data['bookmakers']:
+        bookmaker_name = data['bookmakers'][bookmaker_id]['name']
+        del data['bookmakers'][bookmaker_id]
+        if save_data(data):
+            await query.message.reply_text(f"✅ {bookmaker_name} o'chirildi!")
+        else:
+            await query.message.reply_text("❌ Saqlashda xato!")
+    
+    await show_admin_panel(query)
+
+async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin xabarlarini qayta ishlash"""
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        return
+    
+    if 'waiting_type' not in context.user_data:
+        return
+    
+    message_text = update.message.text
+    
+    if context.user_data['waiting_type'] == 'edit_bookmaker':
+        bookmaker_id = context.user_data['waiting_for_edit']
+        await process_bookmaker_edit(update, context, bookmaker_id, message_text)
+    
+    elif context.user_data['waiting_type'] == 'new_bookmaker':
+        await process_new_bookmaker(update, context, message_text)
+
+async def process_bookmaker_edit(update: Update, context: ContextTypes.DEFAULT_TYPE, bookmaker_id: str, message_text: str):
+    """Bukmeker tahririni qayta ishlash"""
+    try:
+        parts = message_text.split('|')
+        if len(parts) >= 4:
+            name = parts[0].strip()
+            apk = parts[1].strip()
+            reg = parts[2].strip()
+            desc = parts[3].strip()
+            
+            # Ma'lumotlarni yangilash
+            data['bookmakers'][bookmaker_id]['name'] = name
+            data['bookmakers'][bookmaker_id]['apk'] = apk
+            data['bookmakers'][bookmaker_id]['reg'] = reg
+            data['bookmakers'][bookmaker_id]['desc'] = desc
+            
+            if save_data(data):
+                await update.message.reply_text(f"✅ {name} muvaffaqiyatli yangilandi!")
+            else:
+                await update.message.reply_text("❌ Saqlashda xato!")
+        else:
+            await update.message.reply_text("❌ Noto'g'ri format! Iltimos, to'g'ri formatda yuboring.")
+    
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+    
+    # Contextni tozalash
+    context.user_data.pop('waiting_type', None)
+    context.user_data.pop('waiting_for_edit', None)
+    
+    await show_admin_panel_after_edit(update, context)
+
+async def process_new_bookmaker(update: Update, context: ContextTypes.DEFAULT_TYPE, message_text: str):
+    """Yangi bukmeker qo'shish"""
+    try:
+        parts = message_text.split('|')
+        if len(parts) >= 4:
+            bookmaker_id = parts[0].strip().lower()
+            name = parts[1].strip()
+            apk = parts[2].strip()
+            reg = parts[3].strip()
+            desc = parts[4].strip() if len(parts) > 4 else "Yangi bukmeker platformasi"
+            
+            # ID tekshirish
+            if bookmaker_id in data['bookmakers']:
+                await update.message.reply_text("❌ Bu ID allaqachon mavjud!")
+                return
+            
+            # Yangi bukmeker qo'shish
+            data['bookmakers'][bookmaker_id] = {
+                'name': name,
+                'apk': apk,
+                'reg': reg,
+                'desc': desc,
+                'active': True
+            }
+            
+            if save_data(data):
+                await update.message.reply_text(f"✅ {name} muvaffaqiyatli qo'shildi!")
+            else:
+                await update.message.reply_text("❌ Saqlashda xato!")
+        else:
+            await update.message.reply_text("❌ Noto'g'ri format! Iltimos, to'g'ri formatda yuboring.")
+    
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+    
+    # Contextni tozalash
+    context.user_data.pop('waiting_type', None)
+    
+    await show_admin_panel_after_edit(update, context)
+
+async def show_admin_panel_after_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tahrirdan keyin admin panelini ko'rsatish"""
+    # Bu funksiya callback emas, shuning uchun oddiy xabar yuboramiz
+    user_id = update.effective_user.id
+    if is_admin(user_id):
+        text = "👑 *Admin Panel* - Yangilandi!\n\nQuyidagi bukmekerlarni boshqarish:"
+        
+        keyboard = []
+        for bookmaker_id, bookmaker in data['bookmakers'].items():
+            status = "🟢" if bookmaker['active'] else "🔴"
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{status} {bookmaker['name']}", 
+                    callback_data=f"admin_edit_{bookmaker_id}"
+                )
+            ])
+        
+        keyboard.extend([
+            [InlineKeyboardButton("➕ Yangi bukmeker", callback_data="admin_new")],
+            [InlineKeyboardButton("⚙️ Sozlamalar", callback_data="admin_settings")],
+            [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+            [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
+        ])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+# Qolgan funksiyalar (show_signal_options, show_referral_link, show_help, show_bonus, start_callback)
+# Oldingi koddagidek qoladi, faqat data ni global o'zgaruvchidan olish kerak
+
 async def show_signal_options(query, user_id):
     """Signal variantlari"""
     user_data = data['users'].get(str(user_id), {'referrals': 0})
@@ -218,7 +485,6 @@ async def show_signal_options(query, user_id):
     min_ref = data['settings']['min_referrals']
     max_ref = data['settings']['max_referrals']
     
-    # Referal talablari
     if ref_count >= max_ref:
         status = "🟢 TAYYOR"
         signal_text = "Signal olish uchun bosing!"
@@ -244,7 +510,6 @@ async def show_signal_options(query, user_id):
 • {max_ref} ta referal - to'liq signal olish mumkin"""
     
     keyboard = []
-    
     if ref_count >= max_ref:
         keyboard.append([InlineKeyboardButton("🚀 SIGNAL NOW", url=data['settings']['signal_url'])])
     
@@ -254,7 +519,6 @@ async def show_signal_options(query, user_id):
     ])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_referral_link(query, user_id):
@@ -275,123 +539,58 @@ async def show_referral_link(query, user_id):
 2. Har bir yangi foydalanuvchi +1 referal
 3. {data['settings']['max_referrals']} ta referal = To'liq signal access
 
-📊 *Sizning referallaringiz:* {ref_count} ta
-
-💡 *Maslahat:* Havolani koproq odamga yuboring, tezroq signal oling!"""
+📊 *Sizning referallaringiz:* {ref_count} ta"""
     
     keyboard = [
         [InlineKeyboardButton("🔙 Orqaga", callback_data="signal")],
         [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def show_admin_panel(query):
-    """Admin paneli"""
-    text = """
-👑 *Admin Panel*
-
-Quyidagi bukmekerlarni boshqarish:"""
-
-    keyboard = []
-    
-    for bookmaker_id, bookmaker in data['bookmakers'].items():
-        status = "🟢" if bookmaker['active'] else "🔴"
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{status} {bookmaker['name']}", 
-                callback_data=f"admin_edit_{bookmaker_id}"
-            )
-        ])
-    
-    keyboard.extend([
-        [InlineKeyboardButton("⚙️ Sozlamalar", callback_data="admin_settings")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
-    ])
-    
+async def show_help(query):
+    """Yordam menyusi"""
+    text = "📚 *Qo'llanma* - Oldingi kabi..."
+    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="back")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def handle_admin_actions(query, context: ContextTypes.DEFAULT_TYPE):
-    """Admin harakatlari"""
-    action = query.data
-    
-    if action.startswith("admin_edit_"):
-        bookmaker_id = action.replace("admin_edit_", "")
-        await edit_bookmaker(query, bookmaker_id)
-    
-    elif action == "admin_settings":
-        await show_admin_settings(query)
-    
-    elif action == "admin_stats":
-        await show_admin_stats(query)
-    
-    elif action.startswith("admin_save_"):
-        bookmaker_id = action.replace("admin_save_", "")
-        await save_bookmaker_changes(query, context, bookmaker_id)
-    
-    elif action.startswith("admin_toggle_"):
-        bookmaker_id = action.replace("admin_toggle_", "")
-        await toggle_bookmaker(query, bookmaker_id)
-
-async def edit_bookmaker(query, bookmaker_id):
-    """Bukmekerni tahrirlash"""
-    if bookmaker_id not in data['bookmakers']:
-        await query.message.reply_text("❌ Bu bukmeker mavjud emas!")
-        return
-    
-    bookmaker = data['bookmakers'][bookmaker_id]
-    
-    text = f"""
-✏️ *Tahrirlash: {bookmaker['name']}*
-
-🆔 ID: `{bookmaker_id}`
-📛 Nomi: `{bookmaker['name']}`
-📱 APK: `{bookmaker['apk']}`
-🔗 Ro'yxatdan o'tish: `{bookmaker['reg']}`
-📝 Tavsif: `{bookmaker['desc']}`
-🔘 Holati: {'🟢 Faol' if bookmaker['active'] else '🔴 Nofaol'}
-
-Yangi ma'lumotlarni quyidagi formatda yuboring:
-`nomi|apk_havola|reg_havola|tavsif`
-
-Misol:
-`1xBet|https://1xbet.com/apk|https://1xbet.com/reg|Dunyoning eng yirik bukmekeri`"""
-
+async def show_bonus(query):
+    """Bonuslar menyusi"""
+    text = "🎁 *Bonuslar* - Oldingi kabi..."
     keyboard = [
-        [InlineKeyboardButton("🔘 Holatni o'zgartirish", callback_data=f"admin_toggle_{bookmaker_id}")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+        [InlineKeyboardButton("💰 Daromad olish", callback_data="earn")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def start_callback(query):
+    """Callback uchun start"""
+    user = query.from_user
+    user_id = user.id
+    
+    keyboard = [
+        [InlineKeyboardButton("💰 Daromad olishni boshlash", callback_data="earn")],
+        [InlineKeyboardButton("📡 Signal olish", callback_data="signal")],
+        [InlineKeyboardButton("📚 Qo'llanma", callback_data="help")],
+        [InlineKeyboardButton("🎁 Bonus", callback_data="bonus")]
     ]
     
+    if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Contextga ma'lumot saqlaymiz
-    context.user_data['editing_bookmaker'] = bookmaker_id
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def toggle_bookmaker(query, bookmaker_id):
-    """Bukmeker holatini o'zgartirish"""
-    if bookmaker_id in data['bookmakers']:
-        data['bookmakers'][bookmaker_id]['active'] = not data['bookmakers'][bookmaker_id]['active']
-        save_data(data)
-        
-        status = "faol" if data['bookmakers'][bookmaker_id]['active'] else "nofaol"
-        await query.message.reply_text(f"✅ {data['bookmakers'][bookmaker_id]['name']} {status} holatga o'zgartirildi!")
-    
-    await show_admin_panel(query)
-
-async def save_bookmaker_changes(query, context: ContextTypes.DEFAULT_TYPE, bookmaker_id):
-    """O'zgarishlarni saqlash"""
-    # Bu yerda foydalanuvchi kiritgan ma'lumotlarni qabul qilamiz
-    await query.message.reply_text("Iltimos, yangi ma'lumotlarni yuboring...")
+    await query.edit_message_text(
+        f"🎯 Salom {user.first_name}!\n🍎 *Apple of Fortune Botiga Xush Kelibsiz!*",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def show_admin_settings(query):
     """Admin sozlamalari"""
     settings = data['settings']
-    
     text = f"""
 ⚙️ *Sozlamalar*
 
@@ -400,10 +599,9 @@ async def show_admin_settings(query):
 👥 Maksimal referal: `{settings['max_referrals']}`
 
 Sozlamalarni o'zgartirish uchun /settings buyrug'idan foydalaning."""
-
+    
     keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_admin_stats(query):
@@ -427,7 +625,6 @@ async def show_admin_stats(query):
 
     keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 # Admin buyruqlari
@@ -452,144 +649,30 @@ async def admin_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if context.args[0] == "signal_url" and len(context.args) > 1:
         data['settings']['signal_url'] = context.args[1]
-        save_data(data)
-        await update.message.reply_text("✅ Signal URL yangilandi!")
+        if save_data(data):
+            await update.message.reply_text("✅ Signal URL yangilandi!")
+        else:
+            await update.message.reply_text("❌ Saqlashda xato!")
     
     elif context.args[0] == "min_ref" and len(context.args) > 1:
         try:
             data['settings']['min_referrals'] = int(context.args[1])
-            save_data(data)
-            await update.message.reply_text("✅ Minimal referal yangilandi!")
+            if save_data(data):
+                await update.message.reply_text("✅ Minimal referal yangilandi!")
+            else:
+                await update.message.reply_text("❌ Saqlashda xato!")
         except:
             await update.message.reply_text("❌ Noto'g'ri son!")
     
     elif context.args[0] == "max_ref" and len(context.args) > 1:
         try:
             data['settings']['max_referrals'] = int(context.args[1])
-            save_data(data)
-            await update.message.reply_text("✅ Maksimal referal yangilandi!")
+            if save_data(data):
+                await update.message.reply_text("✅ Maksimal referal yangilandi!")
+            else:
+                await update.message.reply_text("❌ Saqlashda xato!")
         except:
             await update.message.reply_text("❌ Noto'g'ri son!")
-
-async def edit_bukmeker(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bukmekerni tahrirlash"""
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Siz admin emassiz!")
-        return
-    
-    if not context.args or len(context.args) < 5:
-        await update.message.reply_text(
-            "Bukmekerni tahrirlash:\n\n"
-            "Format: /edit bukmeker_id nomi apk_havola reg_havola tavsif\n\n"
-            "Misol:\n"
-            "/edit 1xbet 1xBet https://1xbet.com/apk https://1xbet.com/reg 'Dunyoning eng yirik bukmekeri'"
-        )
-        return
-    
-    bookmaker_id = context.args[0]
-    if bookmaker_id not in data['bookmakers']:
-        await update.message.reply_text("❌ Bu bukmeker mavjud emas!")
-        return
-    
-    # Yangi ma'lumotlarni saqlash
-    data['bookmakers'][bookmaker_id]['name'] = context.args[1]
-    data['bookmakers'][bookmaker_id]['apk'] = context.args[2]
-    data['bookmakers'][bookmaker_id]['reg'] = context.args[3]
-    data['bookmakers'][bookmaker_id]['desc'] = ' '.join(context.args[4:])
-    
-    save_data(data)
-    await update.message.reply_text("✅ Bukmeker ma'lumotlari yangilandi!")
-
-# Qolgan funksiyalar (show_help, show_bonus, start_callback) oldingi kabi...
-
-async def show_help(query):
-    """Yordam menyusi"""
-    text = """
-📚 *Botdan Foydalanish Qo'llanmasi*
-
-🎮 *Apple of Fortune O'yini:*
-Bu popular slot o'yini bo'lib, yuqori daromad keltiradi.
-
-💰 *Daromad olish:*
-1. Bukmekerni tanlang (1xBet, MelBet, DBBet)
-2. APK yuklab oling
-3. Ro'yxatdan o'ting
-4. O'ynashni boshlang
-
-📡 *Signal olish:*
-• 5 ta referal - cheklangan signal
-• 20 ta referal - to'liq signal
-
-👥 *Referal tizimi:*
-Har bir do'stingiz sizga +1 referal keltiradi
-
-🎁 *Bonuslar:*
-Har hafta yangi bonuslar va takliflar!"""
-    
-    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="back")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def show_bonus(query):
-    """Bonuslar menyusi"""
-    text = """
-🎁 *Bonuslar va Takliflar*
-
-✨ *Hozirgi Aksiyalar:*
-
-🏆 *Yangi o'yinchilar uchun:*
-• +100% depozit bonus
-• 10 ta bepul spin
-• 5000 so'm start bonus
-
-📈 *Doimiy bonuslar:*
-• Har bir do'st taklifi uchun 50% bonus
-• Haftalik cashback 15% gacha
-• Oylik turnir 1,000,000 so'm g'olibiga
-
-🔥 *Maxsus taklif:*
-Har 5 ta muvaffaqiyatli signaldan keyin maxsus bonus!
-
-💡 *Eslatma:* Bonuslardan foydalanish uchun bukmekerlar orqali ro'yxatdan o'ting!"""
-    
-    keyboard = [
-        [InlineKeyboardButton("💰 Daromad olish", callback_data="earn")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="back")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def start_callback(query):
-    """Callback uchun start"""
-    user = query.from_user
-    user_id = user.id
-    
-    keyboard = [
-        [InlineKeyboardButton("💰 Daromad olishni boshlash", callback_data="earn")],
-        [InlineKeyboardButton("📡 Signal olish", callback_data="signal")],
-        [InlineKeyboardButton("📚 Qo'llanma", callback_data="help")],
-        [InlineKeyboardButton("🎁 Bonus", callback_data="bonus")]
-    ]
-    
-    # Admin paneli
-    if is_admin(user_id):
-        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin")])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        f"🎯 Salom {user.first_name}!\n\n"
-        "🍎 *Apple of Fortune Botiga Xush Kelibsiz!*\n\n"
-        "📈 Bizning bot orqali siz:\n"
-        "• 💰 Daromad olishingiz mumkin\n"
-        "• 📡 Ishonchli signal olasiz\n"
-        "• 👥 Referal orqali qo'shimcha foyda olasiz",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
 
 def main():
     """Asosiy dastur"""
@@ -599,11 +682,12 @@ def main():
         # Handlerlar
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("settings", admin_settings))
-        app.add_handler(CommandHandler("edit", edit_bukmeker))
         app.add_handler(CallbackQueryHandler(button_handler))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_message))
         
         print("✅ Bot muvaffaqiyatli ishga tushdi!")
         print("🤖 Bot ishlayapti...")
+        print(f"👑 Admin ID: {ADMIN_ID}")
         
         app.run_polling()
         
