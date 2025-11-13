@@ -16,7 +16,7 @@ TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"  # Bu yerga o'z tokenin
 # Token mavjudligini tekshirish
 if TOKEN == "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g":
     print("❌ ILTIMOS: TOKEN ni o'zgartiring!")
-    print("BotFather dan token oling va TOKEN o'zgaruvchisiga qo'ying")
+    print("8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g")
     exit(1)
 
 print(f"✅ Bot tokeni mavjud: {TOKEN[:10]}...")
