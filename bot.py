@@ -28,14 +28,22 @@ default_data = {
             "matches": [],
             "description": "🎯 Bugungi Ishonchli Kuponlar",
             "active": True,
-            "coupon_code": ""
+            "coupon_codes": {
+                "1xbet": "",
+                "melbet": "",
+                "dbbet": ""
+            }
         },
         "premium": {
             "date": "",
             "matches": [],
             "description": "💎 Premium Ekskluziv Kuponlar",
             "active": True,
-            "coupon_code": ""
+            "coupon_codes": {
+                "1xbet": "",
+                "melbet": "",
+                "dbbet": ""
+            }
         }
     },
     "settings": {
@@ -85,7 +93,7 @@ def get_user_referrals(user_id):
     return user_data.get('referrals', 0)
 
 def generate_coupon_code():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -200,8 +208,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await toggle_coupons_selection(query)
     elif query.data == "admin_clear_coupons":
         await clear_coupons_selection(query)
-    elif query.data == "admin_edit_code":
-        await edit_coupon_code_selection(query)
+    elif query.data == "admin_edit_codes":
+        await edit_coupon_codes_selection(query)
     elif query.data == "admin_payment_settings":
         await show_payment_settings(query)
     elif query.data.startswith("add_"):
@@ -210,9 +218,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("clear_"):
         coupon_type = query.data.replace("clear_", "")
         await clear_specific_coupons(query, coupon_type)
-    elif query.data.startswith("edit_code_"):
-        coupon_type = query.data.replace("edit_code_", "")
-        await start_editing_code(query, context, coupon_type)
+    elif query.data.startswith("edit_codes_"):
+        coupon_type = query.data.replace("edit_codes_", "")
+        await start_editing_codes(query, context, coupon_type)
     elif query.data.startswith("toggle_"):
         coupon_type = query.data.replace("toggle_", "")
         await toggle_specific_coupons(query, coupon_type)
@@ -231,8 +239,14 @@ async def send_today_coupons(query):
         return
     
     coupon_text = f"🎯 *{today_coupons['description']}*\n\n"
-    coupon_text += f"📅 **Sana:** {today_coupons['date']}\n"
-    coupon_text += f"🆔 **Kupon Kodi:** `{today_coupons.get('coupon_code', '')}`\n\n"
+    coupon_text += f"📅 **Sana:** {today_coupons['date']}\n\n"
+    
+    # Har bir bukmeker uchun kodlar
+    coupon_text += "🔑 *Kupon Kodlari:*\n"
+    coupon_text += f"• 1xBet: `{today_coupons['coupon_codes'].get('1xbet', 'Kod mavjud emas')}`\n"
+    coupon_text += f"• MelBet: `{today_coupons['coupon_codes'].get('melbet', 'Kod mavjud emas')}`\n"
+    coupon_text += f"• DB Bet: `{today_coupons['coupon_codes'].get('dbbet', 'Kod mavjud emas')}`\n\n"
+    
     coupon_text += "---\n\n"
     
     for i, match in enumerate(today_coupons['matches'], 1):
@@ -280,8 +294,14 @@ async def send_premium_coupons(query):
         return
     
     premium_text = f"💎 *{premium_coupons['description']}*\n\n"
-    premium_text += f"📅 **Sana:** {premium_coupons['date']}\n"
-    premium_text += f"🆔 **Kupon Kodi:** `{premium_coupons.get('coupon_code', '')}`\n\n"
+    premium_text += f"📅 **Sana:** {premium_coupons['date']}\n\n"
+    
+    # Har bir bukmeker uchun kodlar
+    premium_text += "🔑 *Premium Kupon Kodlari:*\n"
+    premium_text += f"• 1xBet: `{premium_coupons['coupon_codes'].get('1xbet', 'Kod mavjud emas')}`\n"
+    premium_text += f"• MelBet: `{premium_coupons['coupon_codes'].get('melbet', 'Kod mavjud emas')}`\n"
+    premium_text += f"• DB Bet: `{premium_coupons['coupon_codes'].get('dbbet', 'Kod mavjud emas')}`\n\n"
+    
     premium_text += "---\n\n"
     
     for i, match in enumerate(premium_coupons['matches'], 1):
@@ -353,7 +373,7 @@ async def show_premium_offer(query, user_id):
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_premium_payment(query, user_id):
-    """To'lov sahifasi - ISHLAYDI"""
+    """To'lov sahifasi"""
     payment_details = data['settings']['payment_details']
     
     text = f"""
@@ -523,7 +543,7 @@ Murojaatlar uchun: @admin
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# ADMIN FUNCTIONS - ISHLAYDI
+# ADMIN FUNCTIONS
 async def show_admin_panel(query):
     today_status = "🟢 Faol" if data['coupons']['today']['active'] else "🔴 Nofaol"
     premium_status = "🟢 Faol" if data['coupons']['premium']['active'] else "🔴 Nofaol"
@@ -546,7 +566,7 @@ async def show_admin_panel(query):
     
     keyboard = [
         [InlineKeyboardButton("➕ Kupon Qo'shish", callback_data="admin_add_coupon")],
-        [InlineKeyboardButton("✏️ Kupon Kodini O'zgartirish", callback_data="admin_edit_code")],
+        [InlineKeyboardButton("🔑 Kupon Kodlarini O'zgartirish", callback_data="admin_edit_codes")],
         [InlineKeyboardButton("🔄 Faol/O'chirish", callback_data="admin_toggle_coupons")],
         [InlineKeyboardButton("🗑️ Kuponlarni Tozalash", callback_data="admin_clear_coupons")],
         [InlineKeyboardButton("💳 To'lov Sozlamalari", callback_data="admin_payment_settings")],
@@ -575,9 +595,9 @@ async def start_adding_coupon(query, context: ContextTypes.DEFAULT_TYPE, coupon_
     await query.edit_message_text(
         f"✏️ *{coupon_name} Kupon Qo'shish*\n\n"
         "Quyidagi formatda ma'lumot yuboring:\n\n"
-        "`sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch`\n\n"
+        "`sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch|1xbet_kodi|melbet_kodi|dbbet_kodi`\n\n"
         "*Misol:*\n"
-        "`2024-01-20|20:00|Premier League|Man City vs Arsenal|1X|1.50|85%`\n\n"
+        "`2024-01-20|20:00|Premier League|Man City vs Arsenal|1X|1.50|85%|1XBET123|MELBET456|DBBET789`\n\n"
         "📝 *Eslatma:* Bir nechta kupon qo'shish uchun har birini alohida yuboring.",
         parse_mode='Markdown'
     )
@@ -615,37 +635,53 @@ async def clear_coupons_selection(query):
 
 async def clear_specific_coupons(query, coupon_type: str):
     data['coupons'][coupon_type]['matches'] = []
-    data['coupons'][coupon_type]['coupon_code'] = generate_coupon_code()
+    # Yangi kodlar yaratish
+    data['coupons'][coupon_type]['coupon_codes'] = {
+        "1xbet": generate_coupon_code(),
+        "melbet": generate_coupon_code(),
+        "dbbet": generate_coupon_code()
+    }
     save_data(data)
     
     coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
-    await query.message.reply_text(f"✅ {coupon_name} kuponlar tozalandi va yangi kod yaratildi!")
+    await query.message.reply_text(f"✅ {coupon_name} kuponlar tozalandi va yangi kodlar yaratildi!")
     await show_admin_panel(query)
 
-async def edit_coupon_code_selection(query):
-    text = "✏️ *Qaysi kupon kodini o'zgartirmoqchisiz?*"
+async def edit_coupon_codes_selection(query):
+    text = "🔑 *Qaysi kupon kodlarini o'zgartirmoqchisiz?*"
     
     keyboard = [
-        [InlineKeyboardButton("⚽ Bugungi Kupon Kodi", callback_data="edit_code_today")],
-        [InlineKeyboardButton("💎 Premium Kupon Kodi", callback_data="edit_code_premium")],
+        [InlineKeyboardButton("⚽ Bugungi Kupon Kodlari", callback_data="edit_codes_today")],
+        [InlineKeyboardButton("💎 Premium Kupon Kodlari", callback_data="edit_codes_premium")],
         [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def start_editing_code(query, context: ContextTypes.DEFAULT_TYPE, coupon_type: str):
-    context.user_data['editing_code'] = True
+async def start_editing_codes(query, context: ContextTypes.DEFAULT_TYPE, coupon_type: str):
+    context.user_data['editing_codes'] = True
     context.user_data['coupon_type'] = coupon_type
     
-    current_code = data['coupons'][coupon_type].get('coupon_code', 'Mavjud emas')
+    current_codes = data['coupons'][coupon_type]['coupon_codes']
     coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
     
-    await query.edit_message_text(
-        f"✏️ *{coupon_name} Kupon Kodini O'zgartirish*\n\n"
-        f"🆔 **Joriy kod:** `{current_code}`\n\n"
-        "Yangi kupon kodini yuboring:",
-        parse_mode='Markdown'
-    )
+    text = f"""
+✏️ *{coupon_name} Kupon Kodlarini O'zgartirish*
+
+🆔 **Joriy kodlar:**
+• 1xBet: `{current_codes.get('1xbet', 'Mavjud emas')}`
+• MelBet: `{current_codes.get('melbet', 'Mavjud emas')}`
+• DB Bet: `{current_codes.get('dbbet', 'Mavjud emas')}`
+
+Yangi kodlarni quyidagi formatda yuboring:
+
+`1xbet_kodi|melbet_kodi|dbbet_kodi`
+
+*Misol:*
+`1XBET123|MELBET456|DBBET789`
+"""
+    
+    await query.edit_message_text(text, parse_mode='Markdown')
 
 async def show_payment_settings(query):
     payment_details = data['settings']['payment_details']
@@ -679,9 +715,9 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
         await process_coupon_addition(update, context)
         return
     
-    # Kodni o'zgartirish rejimi
-    if context.user_data.get('editing_code'):
-        await process_code_edit(update, context)
+    # Kodlarni o'zgartirish rejimi
+    if context.user_data.get('editing_codes'):
+        await process_codes_edit(update, context)
         return
     
     # To'lov rekvizitlarini tahrirlash
@@ -694,11 +730,11 @@ async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_
         message_text = update.message.text
         parts = message_text.split('|')
         
-        if len(parts) < 7:
-            await update.message.reply_text("❌ Noto'g'ri format! 7 ta parametr kerak.")
+        if len(parts) < 10:
+            await update.message.reply_text("❌ Noto'g'ri format! 10 ta parametr kerak.")
             return
         
-        date, time, league, teams, prediction, odds, confidence = parts[:7]
+        date, time, league, teams, prediction, odds, confidence, code_1xbet, code_melbet, code_dbbet = parts[:10]
         coupon_type = context.user_data.get('coupon_type', 'today')
         
         new_match = {
@@ -710,21 +746,28 @@ async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_
             'confidence': confidence.strip()
         }
         
-        # Birinchi kupon qo'shilganda kod yaratish
+        # Birinchi kupon qo'shilganda kodlarni saqlash
         if not data['coupons'][coupon_type]['matches']:
-            data['coupons'][coupon_type]['coupon_code'] = generate_coupon_code()
+            data['coupons'][coupon_type]['coupon_codes'] = {
+                "1xbet": code_1xbet.strip(),
+                "melbet": code_melbet.strip(),
+                "dbbet": code_dbbet.strip()
+            }
         
         data['coupons'][coupon_type]['matches'].append(new_match)
         data['coupons'][coupon_type]['date'] = date.strip()
         save_data(data)
         
-        coupon_code = data['coupons'][coupon_type].get('coupon_code', '')
+        coupon_codes = data['coupons'][coupon_type]['coupon_codes']
         coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
         matches_count = len(data['coupons'][coupon_type]['matches'])
         
         await update.message.reply_text(
             f"✅ *{coupon_name} kupon qo'shildi!*\n\n"
-            f"🆔 **Kupon Kodi:** `{coupon_code}`\n"
+            f"🔑 **Kupon Kodlari:**\n"
+            f"• 1xBet: `{coupon_codes.get('1xbet', '')}`\n"
+            f"• MelBet: `{coupon_codes.get('melbet', '')}`\n"
+            f"• DB Bet: `{coupon_codes.get('dbbet', '')}`\n\n"
             f"📊 **Jami kuponlar:** {matches_count} ta\n"
             f"📅 **Sana:** {date}\n\n"
             f"Yana kupon qo'shishingiz mumkin yoki /start buyrug'i orqali bosh menyuga qayting.",
@@ -737,27 +780,41 @@ async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_
     context.user_data.pop('adding_coupon', None)
     context.user_data.pop('coupon_type', None)
 
-async def process_code_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def process_codes_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        new_code = update.message.text.strip()
+        message_text = update.message.text
+        parts = message_text.split('|')
+        
+        if len(parts) < 3:
+            await update.message.reply_text("❌ Noto'g'ri format! 3 ta kod kerak.")
+            return
+        
+        code_1xbet, code_melbet, code_dbbet = parts[:3]
         coupon_type = context.user_data.get('coupon_type', 'today')
         
-        # Yangi kodni saqlash
-        data['coupons'][coupon_type]['coupon_code'] = new_code
+        # Yangi kodlarni saqlash
+        data['coupons'][coupon_type]['coupon_codes'] = {
+            "1xbet": code_1xbet.strip(),
+            "melbet": code_melbet.strip(),
+            "dbbet": code_dbbet.strip()
+        }
         save_data(data)
         
         coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
         
         await update.message.reply_text(
-            f"✅ *{coupon_name} kupon kodi yangilandi!*\n\n"
-            f"🆔 **Yangi kod:** `{new_code}`",
+            f"✅ *{coupon_name} kupon kodlari yangilandi!*\n\n"
+            f"🔑 **Yangi kodlar:**\n"
+            f"• 1xBet: `{code_1xbet.strip()}`\n"
+            f"• MelBet: `{code_melbet.strip()}`\n"
+            f"• DB Bet: `{code_dbbet.strip()}`",
             parse_mode='Markdown'
         )
         
     except Exception as e:
         await update.message.reply_text(f"❌ Xato: {e}")
     
-    context.user_data.pop('editing_code', None)
+    context.user_data.pop('editing_codes', None)
     context.user_data.pop('coupon_type', None)
 
 async def process_payment_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
