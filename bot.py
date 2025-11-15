@@ -260,6 +260,7 @@ async def send_today_coupons(query):
     
     coupon_text += "---\n\n"
     
+    # Har bir o'yin uchun alohida koeffitsient
     for i, match in enumerate(today_coupons['matches'], 1):
         coupon_text += f"*{i}. {match['time']} - {match['league']}*\n"
         coupon_text += f"🏆 `{match['teams']}`\n"
@@ -267,7 +268,7 @@ async def send_today_coupons(query):
         coupon_text += f"📊 **Koeffitsient:** `{match['odds']}`\n"
         coupon_text += f"💎 **Ishonch:** {match['confidence']}\n\n"
     
-    # Umumiy koeffitsient
+    # Umumiy koeffitsientni hisoblash
     total_odds = 1.0
     for match in today_coupons['matches']:
         try:
@@ -275,7 +276,9 @@ async def send_today_coupons(query):
         except:
             pass
     
-    coupon_text += f"💰 **Umumiy koeffitsient:** `{total_odds:.2f}` 🚀\n\n"
+    # Umumiy koeffitsientni alohida qator sifatida ko'rsatish
+    coupon_text += "---\n\n"
+    coupon_text += f"💰 *Umumiy Koeffitsient:* `{total_odds:.2f}` 🚀\n\n"
     coupon_text += "⏰ *Eslatma:* Stavkalarni o'yin boshlanishidan oldin qo'ying!\n"
     
     # Bukmekerlar tugmalari qo'shildi
@@ -323,6 +326,7 @@ async def send_premium_coupons(query):
     
     premium_text += "---\n\n"
     
+    # Har bir o'yin uchun alohida koeffitsient
     for i, match in enumerate(premium_coupons['matches'], 1):
         premium_text += f"*{i}. {match['time']} - {match['league']}*\n"
         premium_text += f"🏆 `{match['teams']}`\n"
@@ -330,7 +334,7 @@ async def send_premium_coupons(query):
         premium_text += f"📊 **Koeffitsient:** `{match['odds']}`\n"
         premium_text += f"💎 **Ishonch:** {match['confidence']}\n\n"
     
-    # Umumiy koeffitsient
+    # Umumiy koeffitsientni hisoblash
     total_odds = 1.0
     for match in premium_coupons['matches']:
         try:
@@ -338,7 +342,9 @@ async def send_premium_coupons(query):
         except:
             pass
     
-    premium_text += f"💰 **Umumiy koeffitsient:** `{total_odds:.2f}` 💰\n\n"
+    # Umumiy koeffitsientni alohida qator sifatida ko'rsatish
+    premium_text += "---\n\n"
+    premium_text += f"💰 *Umumiy Koeffitsient:* `{total_odds:.2f}` 💰\n\n"
     premium_text += "✅ *Premium a'zo bo'lganingiz uchun rahmat!*\n"
     
     # Bukmekerlar tugmalari qo'shildi
@@ -381,22 +387,27 @@ async def show_bet_platform(query, platform):
 
 🔑 **Kupon Kodi:** `{coupon_code}`
 
-📱 **Platformaga o'tish uchun quyidagi havolani bosing:**
-{platform_link}
-
-💡 *Qanday foydalanish:*
-1. Havolani bosing yoki {platform_name} saytiga o'ting
-2. Ro'yxatdan o'ting/Hisobingizga kiring
-3. Kupon kodini kiriting: `{coupon_code}`
-4. Kuponni qo'shing va stavka qiling!
-
-✅ *Eslatma:* Kupon kodini faqat bir marta ishlatish mumkin.
+📱 **Platformaga o'tish uchun quyidagi tugmalardan foydalaning:**
 """
     
+    # Shaffof tugmalar qatorlari
     keyboard = [
-        [InlineKeyboardButton(f"🌐 {platform_name} Saytiga O'tish", url=platform_link)],
+        # 1-qator: Asosiy sayt va APK yuklash
+        [
+            InlineKeyboardButton("🌐 Saytga O'tish", url=platform_link),
+            InlineKeyboardButton("📱 APK Yuklash", url="https://t.me/bonusliapkbot")
+        ],
+        # 2-qator: Orqaga tugmasi
         [InlineKeyboardButton("🔙 Kuponlarga Qaytish", callback_data="back_to_coupons")]
     ]
+    
+    text += f"\n💡 *Qanday foydalanish:*\n"
+    text += f"1. Saytga o'ting yoki APK yuklang\n"
+    text += f"2. Ro'yxatdan o'ting/Hisobingizga kiring\n"
+    text += f"3. Kupon kodini kiriting: `{coupon_code}`\n"
+    text += f"4. Kuponni qo'shing va stavka qiling!\n\n"
+    text += f"✅ *Eslatma:* Kupon kodini faqat bir marta ishlatish mumkin."
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
@@ -463,7 +474,7 @@ async def show_premium_payment(query, user_id):
 📋 *Qadamlar:*
 1. Yuqoridagi raqamlarga to'lov qiling
 2. Chek skrinshotini oling
-3. @admin ga yuboring
+3. @baxtga_olga ga yuboring
 4. Premium ochiladi!
 
 ⏰ *Eslatma:* To'lov qilgach, tez orada premium ochiladi.
@@ -954,6 +965,7 @@ def main():
         print("🤖 Bot ishlayapti...")
         print(f"👑 Admin ID: {ADMIN_ID}")
         print("🎰 Bukmeker tugmalari qo'shildi: 1xBet, MelBet, DB Bet")
+        print("📊 Koeffitsientlar alohida va umumiy ko'rsatiladi!")
         
         app.run_polling()
         
