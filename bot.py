@@ -7,10 +7,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # Bot tokeni
-TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"
+TOKEN = "7454675594:AAE5Obhl2WUxIMYpbw7o31QArwxZr7DQYck"
 
 # Admin ID
-ADMIN_ID = 7633561058
+ADMIN_ID = 7081746531
 
 # Ma'lumotlarni saqlash fayli
 DATA_FILE = "data.json"
