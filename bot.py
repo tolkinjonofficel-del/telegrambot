@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"
 
 # Admin ID (o'zingizning ID ingizni qo'ying)
-ADMIN_ID = 123456789  # O'z ID ingizni qo'ying
+ADMIN_ID = 7633561058  # O'z ID ingizni qo'ying
 
 # Ma'lumotlarni saqlash fayli
 DATA_FILE = "data.json"
