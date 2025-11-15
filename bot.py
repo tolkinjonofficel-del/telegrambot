@@ -448,7 +448,7 @@ async def show_bet_platform(query, platform):
         # 1-qator: Asosiy sayt va APK yuklash
         [
             InlineKeyboardButton("🌐 Saytga O'tish", url=platform_link),
-            InlineKeyboardButton("📱 APK Yuklash", url="https://t.me/bonusliapkbot")
+            InlineKeyboardButton("📱 APK Yuklash", url="https://t.me/bonusapkxbetbot")
         ],
         # 2-qator: Orqaga tugmasi
         [InlineKeyboardButton("🔙 Kuponlarga Qaytish", callback_data="back_to_coupons")]
