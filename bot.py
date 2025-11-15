@@ -3,24 +3,20 @@ import json
 import logging
 import random
 import string
-from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # Bot tokeni
 TOKEN = "8172087830:AAGe0W_fB-Xknd1wPsG8ElpBP6jL5XOmi-g"
 
-# Admin ID (o'zingizning ID ingizni qo'ying)
-ADMIN_ID = 7633561058  # O'z ID ingizni qo'ying
+# Admin ID
+ADMIN_ID = 7633561058
 
 # Ma'lumotlarni saqlash fayli
 DATA_FILE = "data.json"
 
 # Loggerni sozlash
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Boshlang'ich ma'lumotlar
@@ -31,93 +27,69 @@ default_data = {
             "date": "",
             "matches": [],
             "description": "📊 Bugungi ishonchli kuponlar",
-            "active": True
+            "active": True,
+            "coupon_code": ""
         }
     },
     "settings": {
         "min_referrals": 10,
         "premium_price": 100,
         "currency": "so'm",
-        "payment_details": "💳 To'lov qilish uchun:\n\nClick: 1234 5678 9012 3456\nPayme: +998901234567\nUzumbank: 8600 1234 5678 9012\n\nTo'lov qilgach, chek skrinshotini @admin ga yuboring."
+        "payment_details": "💳 To'lov qilish uchun:\n\nClick: 1234 5678 9012 3456\nPayme: +998901234567\n\nTo'lov qilgach, chek skrinshotini @admin ga yuboring."
     },
     "stats": {
         "total_users": 0,
-        "premium_users": 0,
-        "total_coupons_sent": 0
-    },
-    "bookmakers": {
-        "1xbet": {
-            "name": "1xBet",
-            "url": "https://1xbet.com",
-            "bonus": "100% bonus to'ldirish",
-            "active": True
-        },
-        "melbet": {
-            "name": "MelBet",
-            "url": "https://melbet.com",
-            "bonus": "110% bonus to'ldirish",
-            "active": True
-        }
+        "premium_users": 0
     }
 }
 
-# Ma'lumotlarni yuklash
 def load_data():
+    """Ma'lumotlarni yuklash"""
     try:
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
-        save_data(default_data)
-        return default_data
-    except Exception as e:
-        logger.error(f"Ma'lumotlarni yuklashda xato: {e}")
+    except:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_data, f, ensure_ascii=False, indent=2)
         return default_data
 
-# Ma'lumotlarni saqlash
 def save_data(data):
+    """Ma'lumotlarni saqlash"""
     try:
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        logger.error(f"Ma'lumotlarni saqlashda xato: {e}")
+        logger.error(f"Saqlash xatosi: {e}")
         return False
 
-# Ma'lumotlarni yuklab olish
+# Ma'lumotlarni yuklash
 data = load_data()
 
 def is_admin(user_id):
-    """Admin tekshirish"""
     return user_id == ADMIN_ID
 
 def is_premium(user_id):
-    """Premium foydalanuvchi tekshirish"""
     user_data = data['users'].get(str(user_id), {})
     return user_data.get('premium', False)
 
 def get_user_referrals(user_id):
-    """Foydalanuvchi referallar soni"""
     user_data = data['users'].get(str(user_id), {})
     return user_data.get('referrals', 0)
 
 def generate_coupon_code():
-    """Kupon kodi yaratish"""
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start komandasi"""
     user = update.effective_user
     user_id = user.id
     
-    # Yangi foydalanuvchini qo'shish
+    # Yangi foydalanuvchi
     if str(user_id) not in data['users']:
         data['users'][str(user_id)] = {
             'name': user.first_name,
-            'username': user.username,
             'referrals': 0,
-            'premium': False,
-            'joined_date': datetime.now().isoformat(),
-            'last_coupon_date': None
+            'premium': False
         }
         data['stats']['total_users'] += 1
         save_data(data)
@@ -131,22 +103,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if str(referrer_id) in data['users'] and referrer_id != user_id:
                     data['users'][str(referrer_id)]['referrals'] += 1
                     save_data(data)
-                    await update.message.reply_text(
-                        "✅ Siz do'stingiz taklifi orqali qo'shildingiz! "
-                        "Endi siz ham referal yigishingiz mumkin."
-                    )
-            except Exception as e:
-                logger.error(f"Referal qayta ishlash xatosi: {e}")
+            except:
+                pass
 
     keyboard = [
         [InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="today_coupons")],
         [InlineKeyboardButton("🎯 Premium Kuponlar", callback_data="premium_coupons")],
         [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-        [InlineKeyboardButton("🏆 Bukmekerlar", callback_data="bookmakers")],
         [InlineKeyboardButton("ℹ️ Yordam", callback_data="help")]
     ]
     
-    # Admin paneli
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin")])
     
@@ -154,465 +120,202 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"⚽ Salom {user.first_name}!\n\n"
-        "📊 *Futbol Kuponlari Botiga Xush Kelibsiz!*\n\n"
-        "🎯 *Bizning bot orqali siz:*\n"
-        "• ⚽ Bepul kuponlar olasiz\n"
-        "• 💎 Premium kuponlarga ega bo'lasiz\n"
-        "• 👥 10 ta referal yoki 100 so'm to'lov\n"
-        "• 🏆 Ishonchli bukmekerlar bilan ishlaysiz",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        "📊 Futbol Kuponlari Botiga Xush Kelibsiz!\n\n"
+        "10 ta referal yoki 100 so'm to'lov bilan Premium kuponlarga ega bo'ling!",
+        reply_markup=reply_markup
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tugmalarni boshqarish"""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
     
     if query.data == "today_coupons":
-        await send_today_coupons(query, user_id)
-    
+        await send_today_coupons(query)
     elif query.data == "premium_coupons":
         await handle_premium_coupons(query, user_id)
-    
-    elif query.data == "bookmakers":
-        await show_bookmakers(query)
-    
     elif query.data == "get_referral_link":
         await show_referral_link(query, user_id)
-    
     elif query.data == "help":
         await show_help(query)
-    
     elif query.data == "admin":
         if is_admin(user_id):
             await show_admin_panel(query)
-        else:
-            await query.message.reply_text("❌ Siz admin emassiz!")
-    
-    elif query.data.startswith("admin_"):
-        if is_admin(user_id):
-            await handle_admin_actions(query, context)
-    
-    elif query.data == "buy_premium":
-        await show_premium_payment(query, user_id)
-    
-    elif query.data == "get_free_premium":
-        await activate_free_premium(query, user_id)
-    
     elif query.data == "back":
         await back_to_main(query)
-    
+    elif query.data == "admin_add_coupon":
+        await start_adding_coupon(query, context)
     elif query.data == "admin_toggle_coupons":
         await toggle_coupons_active(query)
-    
     elif query.data == "admin_clear_coupons":
         await clear_coupons(query)
-    
-    elif query.data == "admin_edit_payment":
-        await edit_payment_details(query, context)
-    
-    elif query.data == "admin_view_coupons":
-        await view_coupons(query)
 
-async def send_today_coupons(query, user_id):
-    """Bugungi kuponlarni yuborish"""
+async def send_today_coupons(query):
     today_coupons = data['coupons']['today']
     
-    if not today_coupons['active']:
-        await query.edit_message_text(
-            "❌ Bugungi kuponlar hozircha mavjud emas.\n"
-            "Iltimos, keyinroq urinib ko'ring.",
-            parse_mode='Markdown'
-        )
+    if not today_coupons['active'] or not today_coupons['matches']:
+        await query.edit_message_text("❌ Bugun uchun kuponlar mavjud emas.")
         return
     
-    if not today_coupons['matches']:
-        await query.edit_message_text(
-            "❌ Bugun uchun kuponlar hali tayyor emas.\n"
-            "Iltimos, keyinroq urinib ko'ring.",
-            parse_mode='Markdown'
-        )
-        return
-    
-    coupon_text = f"⚽ *{today_coupons['description']}*\n"
+    coupon_text = f"⚽ {today_coupons['description']}\n"
     coupon_text += f"📅 Sana: {today_coupons['date']}\n"
-    coupon_text += f"🆔 Kupon Kodi: `{today_coupons.get('coupon_code', 'NOMA\'LUM')}`\n\n"
+    coupon_text += f"🆔 Kupon Kodi: {today_coupons.get('coupon_code', '')}\n\n"
     
     for i, match in enumerate(today_coupons['matches'], 1):
-        coupon_text += f"*{i}. {match['time']} - {match['league']}*\n"
+        coupon_text += f"{i}. {match['time']} - {match['league']}\n"
         coupon_text += f"🏆 {match['teams']}\n"
-        coupon_text += f"🎯 Bashorat: *{match['prediction']}*\n"
-        coupon_text += f"📊 Koeffitsient: *{match['odds']}*\n"
-        coupon_text += f"💎 Ishonch: {match['confidence']}\n\n"
-    
-    # Umumiy koeffitsientni hisoblash
-    total_odds = 1.0
-    for match in today_coupons['matches']:
-        try:
-            total_odds *= float(match['odds'])
-        except:
-            pass
-    
-    coupon_text += f"💰 *Umumiy koeffitsient:* *{total_odds:.2f}* 🚀\n"
-    coupon_text += "⏰ *Muhim:* Stavkalarni o'yin boshlanishidan oldin qo'ying!\n\n"
-    coupon_text += "📱 *Stavka qo'yish uchun:*\n"
+        coupon_text += f"🎯 {match['prediction']} ({match['odds']})\n"
+        coupon_text += f"💎 {match['confidence']}\n\n"
     
     keyboard = [
-        [InlineKeyboardButton("🏆 1xBet", url=data['bookmakers']['1xbet']['url'])],
-        [InlineKeyboardButton("🎯 MelBet", url=data['bookmakers']['melbet']['url'])],
         [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(coupon_text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.edit_message_text(coupon_text, reply_markup=reply_markup)
 
 async def handle_premium_coupons(query, user_id):
-    """Premium kuponlarni ko'rsatish"""
     if is_premium(user_id):
-        await send_premium_coupons(query, user_id)
+        await send_premium_coupons(query)
     else:
         await show_premium_offer(query, user_id)
 
-async def send_premium_coupons(query, user_id):
-    """Premium kuponlarni yuborish"""
-    premium_text = """
-🎯 *PREMIUM KUPONLAR*
+async def send_premium_coupons(query):
+    premium_text = """🎯 PREMIUM KUPONLAR
 
-💎 *Ekskluziv imkoniyatlar:*
-• Yuqori daromadli kuponlar
-• VIP bashoratlar
-• Statistik tahlillar
-• Shaxsiy maslahatlar
-
-📊 *Bugungi Premium Kupon:*
-
-⚽ *Champions League - 1/8 Final*
+⚽ Champions League
 🏆 Real Madrid vs Bayern Munich
-🎯 Bashorat: *1X & Over 2.5*
-📊 Koeffitsient: *3.50*
-💎 Ishonch: 95%
+🎯 1X & Over 2.5 (3.50)
+💎 95%
 
-⚽ *Premier League*
-🏆 Manchester City vs Arsenal  
-🎯 Bashorat: *BTTS - Ha*
-📊 Koeffitsient: *1.80*
-💎 Ishonch: 88%
+⚽ Premier League  
+🏆 Man City vs Arsenal
+🎯 BTTS - Ha (1.80)
+💎 88%
 
-⚽ *Serie A*
-🏆 Juventus vs Inter Milan
-🎯 Bashorat: *2X*
-📊 Koeffitsient: *1.65*
-💎 Ishonch: 82%
-
-💰 *Umumiy koeffitsient:* 10.40 🚀
-🆔 *Premium Kupon Kodi:* `PREMIUM123`
-
-🎁 *Premium a'zo bo'lganingiz uchun rahmat!*"""
-
+🆔 Kupon Kodi: PREMIUM123"""
+    
     keyboard = [
-        [InlineKeyboardButton("🏆 Stavka qo'yish", url=data['bookmakers']['1xbet']['url'])],
-        [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(premium_text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.edit_message_text(premium_text, reply_markup=reply_markup)
 
 async def show_premium_offer(query, user_id):
-    """Premium taklifini ko'rsatish"""
     referrals_count = get_user_referrals(user_id)
     required_refs = data['settings']['min_referrals']
     
-    premium_text = f"""
-🎯 *PREMIUM KUPONLARGA KIRISH*
+    text = f"""🎯 PREMIUM KUPONLAR
 
-💎 *Premium a'zo bo'lish usullari:*
+Sizda: {referrals_count}/{required_refs} referal
 
-1️⃣ *Referal orqali* ({referrals_count}/{required_refs})
-   - {required_refs} ta do'stingizni taklif qiling
-   - Bepul premium oching
-
-2️⃣ *To'lov orqali*
-   - {data['settings']['premium_price']:,} {data['settings']['currency']}
-   - Darhol premium oching
-
-📊 *Premium afzalliklari:*
-• Yuqori daromadli kuponlar
-• Ekskluziv bashoratlar  
-• Statistik tahlillar
-• 95% gacha ishonch
-• Shaxsiy qo'llab-quvvatlash"""
-
-    keyboard = []
+10 ta referal yoki 100 so'm to'lov bilan Premium oching!"""
     
+    keyboard = []
     if referrals_count >= required_refs:
-        keyboard.append([InlineKeyboardButton("🎁 Bepul Premium Ochish", callback_data="get_free_premium")])
+        keyboard.append([InlineKeyboardButton("🎁 Bepul Premium", callback_data="get_free_premium")])
     else:
-        keyboard.append([InlineKeyboardButton("📤 Do'stlarni Taklif Qilish", callback_data="get_referral_link")])
+        keyboard.append([InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")])
     
-    keyboard.extend([
-        [InlineKeyboardButton("💳 Premium Sotib Olish", callback_data="buy_premium")],
-        [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-    ])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(premium_text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def show_bookmakers(query):
-    """Bukmekerlar ro'yxati"""
-    text = """
-🏆 *Ishonchli Bukmekerlar*
-
-Quyidagi bukmekerlar orqali stavka qo'yishingiz mumkin:"""
-
-    keyboard = []
-    
-    for bookmaker_id, bookmaker in data['bookmakers'].items():
-        if bookmaker['active']:
-            keyboard.append([
-                InlineKeyboardButton(
-                    f"🎯 {bookmaker['name']} - {bookmaker['bonus']}", 
-                    url=bookmaker['url']
-                )
-            ])
-    
-    keyboard.append([InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")])
+    keyboard.append([InlineKeyboardButton("💳 Premium Sotib Olish", callback_data="buy_premium")])
     keyboard.append([InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
 async def show_referral_link(query, user_id):
-    """Referal havolasini ko'rsatish"""
     bot_username = (await query.message._bot.get_me()).username
     ref_link = f"https://t.me/{bot_username}?start=ref{user_id}"
     referrals_count = get_user_referrals(user_id)
-    required_refs = data['settings']['min_referrals']
     
-    text = f"""
-📤 *Referal Havolangiz*
+    text = f"""📤 Referal Havolangiz
 
-`{ref_link}`
+{ref_link}
 
-👥 *Qanday ishlatish:*
-1. Ushbu havolani do'stlaringizga yuboring
-2. Har bir yangi foydalanuvchi sizga +1 referal
-3. {required_refs} ta referal = Bepul Premium
-
-📊 *Sizning referallaringiz:* {referrals_count} ta / {required_refs} ta
-
-💡 *Maslahat:* Havolani ko'proq odamga yuboring, tezroq premiumga ega bo'ling!"""
-
+Sizning referallaringiz: {referrals_count} ta"""
+    
     keyboard = [
-        [InlineKeyboardButton("👥 Premium Olish", callback_data="premium_coupons")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
+
+async def show_help(query):
+    text = """ℹ️ Yordam
+
+⚽ Bugungi Kuponlar - bepul
+🎯 Premium Kuponlar - 10 referal yoki 100 so'm
+📤 Referal Havola - do'stlaringizni taklif qiling"""
     
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def show_premium_payment(query, user_id):
-    """Premium to'lov ma'lumotlari"""
-    payment_details = data['settings']['payment_details']
-    
-    text = f"""
-💳 *Premium A'zolik*
-
-💰 Narxi: *{data['settings']['premium_price']:,} {data['settings']['currency']}*
-
-{payment_details}
-
-✅ To'lov qilgach, chek skrinshotini @admin ga yuboring va Premium ochiladi."""
-
     keyboard = [
-        [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="premium_coupons")],
-        [InlineKeyboardButton("🏠 Bosh Menyu", callback_data="back")]
+        [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
-async def activate_free_premium(query, user_id):
-    """Bepul premiumni faollashtirish"""
-    referrals_count = get_user_referrals(user_id)
-    required_refs = data['settings']['min_referrals']
-    
-    if referrals_count >= required_refs:
-        data['users'][str(user_id)]['premium'] = True
-        save_data(data)
-        
-        text = """
-🎉 *TABRIKLAYMIZ!*
-
-Siz muvaffaqiyatli Premium a'zoga aylandingiz!
-
-💎 *Endi siz quyidagi imkoniyatlarga ega bo'ldingiz:*
-• Yuqori daromadli kuponlar
-• Ekskluziv bashoratlar
-• Statistik tahlillar
-• 95% gacha ishonch
-
-📊 Premium kuponlarni ko'rish uchun 'Premium Kuponlar' bo'limiga o'ting."""
-        
-        keyboard = [
-            [InlineKeyboardButton("🎯 Premium Kuponlar", callback_data="premium_coupons")],
-            [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-    else:
-        text = f"""
-❌ *Hozircha Premium ocholmaysiz!*
-
-Sizda {referrals_count} ta referal mavjud, {required_refs} ta kerak.
-
-📤 Ko'proq do'stlaringizni taklif qiling va Premiumga ega bo'ling!"""
-        
-        keyboard = [
-            [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-            [InlineKeyboardButton("🔙 Orqaga", callback_data="premium_coupons")]
-        ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-# ADMIN PANEL FUNCTIONS
+# ADMIN FUNCTIONS
 async def show_admin_panel(query):
-    """Admin paneli"""
-    today_status = "🟢 Faol" if data['coupons']['today']['active'] else "🔴 Nofaol"
+    status = "🟢 Faol" if data['coupons']['today']['active'] else "🔴 Nofaol"
     matches_count = len(data['coupons']['today']['matches'])
     
-    text = f"""
-👑 *Admin Panel*
+    text = f"""👑 Admin Panel
 
-📊 Bugungi kuponlar: {today_status}
-📈 Kuponlar soni: {matches_count} ta
-👥 Jami foydalanuvchilar: {data['stats']['total_users']}
-💎 Premium foydalanuvchilar: {sum(1 for user in data['users'].values() if user.get('premium', False))}
-
-Quyidagi imkoniyatlar:"""
-
+Kuponlar: {status}
+Kuponlar soni: {matches_count} ta
+Foydalanuvchilar: {data['stats']['total_users']}"""
+    
     keyboard = [
-        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
-        [InlineKeyboardButton("⚽ Kuponlarni Boshqarish", callback_data="admin_coupons")],
-        [InlineKeyboardButton("💰 To'lov Sozlamalari", callback_data="admin_payment")],
-        [InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users")],
-        [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("➕ Kupon Qo'shish", callback_data="admin_add_coupon")],
+        [InlineKeyboardButton("🔄 Faol/O'chir", callback_data="admin_toggle_coupons")],
+        [InlineKeyboardButton("🗑️ Kuponlarni Tozalash", callback_data="admin_clear_coupons")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
-async def handle_admin_actions(query, context: ContextTypes.DEFAULT_TYPE):
-    """Admin harakatlari"""
-    action = query.data
-    
-    if action == "admin_stats":
-        await show_admin_stats(query)
-    
-    elif action == "admin_coupons":
-        await show_coupon_management(query)
-    
-    elif action == "admin_payment":
-        await show_payment_settings(query)
-    
-    elif action == "admin_users":
-        await show_user_management(query)
-    
-    elif action == "admin_broadcast":
-        await start_broadcast(query, context)
-    
-    elif action.startswith("admin_add_"):
-        coupon_type = action.replace("admin_add_", "")
-        await start_adding_coupon(query, context, coupon_type)
-    
-    elif action == "admin_toggle_coupons":
-        await toggle_coupons_active(query)
-    
-    elif action == "admin_clear_coupons":
-        await clear_coupons(query)
-    
-    elif action == "admin_edit_payment":
-        await edit_payment_details(query, context)
-    
-    elif action == "admin_view_coupons":
-        await view_coupons(query)
-
-async def show_coupon_management(query):
-    """Kuponlarni boshqarish"""
-    today_coupons = data['coupons']['today']
-    status = "🟢 Faol" if today_coupons['active'] else "🔴 Nofaol"
-    matches_count = len(today_coupons['matches'])
-    coupon_code = today_coupons.get('coupon_code', 'Kod mavjud emas')
-    
-    text = f"""
-⚽ *Kuponlarni Boshqarish*
-
-📊 Holat: {status}
-📈 Kuponlar soni: {matches_count} ta
-🆔 Kupon Kodi: `{coupon_code}`
-📅 Oxirgi yangilangan: {today_coupons['date']}
-
-Quyidagi amallarni bajarishingiz mumkin:"""
-
-    keyboard = [
-        [InlineKeyboardButton("➕ Yangi Kupon Qo'shish", callback_data="admin_add_today")],
-        [InlineKeyboardButton("🔄 Faollashtirish/O'chirish", callback_data="admin_toggle_coupons")],
-        [InlineKeyboardButton("🗑️ Barcha Kuponlarni O'chirish", callback_data="admin_clear_coupons")],
-        [InlineKeyboardButton("📋 Kuponlarni Ko'rish", callback_data="admin_view_coupons")],
-        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin")]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def start_adding_coupon(query, context: ContextTypes.DEFAULT_TYPE, coupon_type: str):
-    """Kupon qo'shishni boshlash"""
+async def start_adding_coupon(query, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['adding_coupon'] = True
-    context.user_data['coupon_type'] = coupon_type
+    await query.edit_message_text(
+        "Kupon qo'shish uchun formatda yuboring:\n\n"
+        "sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch\n\n"
+        "Misol: 2024-01-20|20:00|Premier League|Man City vs Arsenal|1X|1.50|85%"
+    )
+
+async def toggle_coupons_active(query):
+    data['coupons']['today']['active'] = not data['coupons']['today']['active']
+    save_data(data)
+    status = "faol" if data['coupons']['today']['active'] else "nofaol"
+    await query.message.reply_text(f"Kuponlar {status} holatga o'zgartirildi!")
+    await show_admin_panel(query)
+
+async def clear_coupons(query):
+    data['coupons']['today']['matches'] = []
+    data['coupons']['today']['coupon_code'] = generate_coupon_code()
+    save_data(data)
+    await query.message.reply_text("Barcha kuponlar o'chirildi!")
+    await show_admin_panel(query)
+
+async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        return
     
-    text = f"""
-✏️ *Yangi Kupon Qo'shish*
-
-Quyidagi formatda ma'lumot yuboring:
-
-`sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch`
-
-*Misol:*
-`2024-01-20|20:00|Premier League|Manchester City vs Arsenal|1X|1.50|85%`
-
-*Eslatma:* 
-- Sana format: YYYY-MM-DD
-- Bir nechta kupon qo'shish uchun har birini alohida yuboring
-- Birinchi kupon qo'shilganda avtomatik kupon kodi yaratiladi"""
-
-    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin_coupons")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+    if context.user_data.get('adding_coupon'):
+        await process_coupon_addition(update, context)
 
 async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kupon qo'shishni qayta ishlash"""
     try:
         message_text = update.message.text
         parts = message_text.split('|')
         
         if len(parts) < 7:
-            await update.message.reply_text(
-                "❌ Noto'g'ri format! 7 ta parametr kerak.\n\n"
-                "Format: sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch"
-            )
+            await update.message.reply_text("❌ Noto'g'ri format!")
             return
         
         date, time, league, teams, prediction, odds, confidence = parts[:7]
-        coupon_type = context.user_data.get('coupon_type', 'today')
         
         new_match = {
             'time': time.strip(),
@@ -623,100 +326,62 @@ async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_
             'confidence': confidence.strip()
         }
         
-        # Birinchi kupon qo'shilganda kupon kodi yaratish
-        if not data['coupons'][coupon_type]['matches']:
-            data['coupons'][coupon_type]['coupon_code'] = generate_coupon_code()
+        # Birinchi kupon qo'shilganda kod yaratish
+        if not data['coupons']['today']['matches']:
+            data['coupons']['today']['coupon_code'] = generate_coupon_code()
         
-        # Kuponni qo'shish
-        data['coupons'][coupon_type]['matches'].append(new_match)
-        data['coupons'][coupon_type]['date'] = date.strip()
+        data['coupons']['today']['matches'].append(new_match)
+        data['coupons']['today']['date'] = date.strip()
         save_data(data)
         
-        coupon_code = data['coupons'][coupon_type].get('coupon_code', 'NOMA\'LUM')
+        coupon_code = data['coupons']['today'].get('coupon_code', '')
         
         await update.message.reply_text(
-            f"✅ Kupon muvaffaqiyatli qo'shildi!\n\n"
-            f"📅 {date} {time}\n"
-            f"🏆 {teams}\n"
-            f"🎯 {prediction} ({odds})\n"
-            f"🆔 Kupon Kodi: `{coupon_code}`\n\n"
-            f"📊 Jami kuponlar: {len(data['coupons'][coupon_type]['matches'])} ta\n"
-            f"Yana kupon qo'shishingiz mumkin yoki '🔙 Orqaga' tugmasini bosing."
+            f"✅ Kupon qo'shildi!\n"
+            f"Kod: {coupon_code}\n"
+            f"Jami: {len(data['coupons']['today']['matches'])} ta"
         )
         
     except Exception as e:
-        logger.error(f"Kupon qo'shish xatosi: {e}")
         await update.message.reply_text(f"❌ Xato: {e}")
+    
+    context.user_data.pop('adding_coupon', None)
 
-async def toggle_coupons_active(query):
-    """Kuponlarni faollashtirish/o'chirish"""
-    data['coupons']['today']['active'] = not data['coupons']['today']['active']
-    save_data(data)
+async def back_to_main(query):
+    user = query.from_user
+    user_id = user.id
     
-    status = "faol" if data['coupons']['today']['active'] else "nofaol"
-    await query.message.reply_text(f"✅ Bugungi kuponlar {status} holatga o'zgartirildi!")
-    await show_coupon_management(query)
-
-async def clear_coupons(query):
-    """Barcha kuponlarni o'chirish"""
-    data['coupons']['today']['matches'] = []
-    data['coupons']['today']['coupon_code'] = generate_coupon_code()  # Yangi kod
-    save_data(data)
-    
-    await query.message.reply_text("✅ Barcha kuponlar o'chirildi va yangi kupon kodi yaratildi!")
-    await show_coupon_management(query)
-
-async def view_coupons(query):
-    """Kuponlarni ko'rish"""
-    today_coupons = data['coupons']['today']
-    
-    if not today_coupons['matches']:
-        await query.message.reply_text("❌ Hozircha kuponlar mavjud emas.")
-        return
-    
-    text = f"📋 *Joriy Kuponlar*\n\n"
-    text += f"📅 Sana: {today_coupons['date']}\n"
-    text += f"🆔 Kupon Kodi: `{today_coupons.get('coupon_code', 'NOMA\'LUM')}`\n\n"
-    
-    for i, match in enumerate(today_coupons['matches'], 1):
-        text += f"*{i}. {match['time']} - {match['league']}*\n"
-        text += f"🏆 {match['teams']}\n"
-        text += f"🎯 {match['prediction']} ({match['odds']})\n"
-        text += f"💎 {match['confidence']}\n\n"
-    
-    keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin_coupons")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def show_payment_settings(query):
-    """To'lov sozlamalari"""
-    payment_details = data['settings']['payment_details']
-    
-    text = f"""
-💰 *To'lov Sozlamalari*
-
-💳 Premium narxi: {data['settings']['premium_price']:,} {data['settings']['currency']}
-👥 Referal talabi: {data['settings']['min_referrals']} ta
-
-📋 *Joriy to'lov rekvizitlari:*
-{payment_details}"""
-
     keyboard = [
-        [InlineKeyboardButton("✏️ To'lov Rekvizitlarini Tahrirlash", callback_data="admin_edit_payment")],
-        [InlineKeyboardButton("🔙 Admin Panel", callback_data="admin")]
+        [InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="today_coupons")],
+        [InlineKeyboardButton("🎯 Premium Kuponlar", callback_data="premium_coupons")],
+        [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
+        [InlineKeyboardButton("ℹ️ Yordam", callback_data="help")]
     ]
     
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def edit_payment_details(query, context: ContextTypes.DEFAULT_TYPE):
-    """To'lov rekvizitlarini tahrirlash"""
-    context.user_data['editing_payment'] = True
+    if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin")])
     
-    text = """
-✏️ *To'lov Rekvizitlarini Tahrirlash*
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        f"⚽ Salom {user.first_name}!",
+        reply_markup=reply_markup
+    )
 
-Yangi to'lov rekvizitlarini yuboring.
+def main():
+    try:
+        app = Application.builder().token(TOKEN).build()
+        
+        # Handlerlar
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CallbackQueryHandler(button_handler))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_message))
+        
+        print("✅ Bot ishga tushdi!")
+        app.run_polling()
+        
+    except Exception as e:
+        print(f"❌ Xato: {e}")
 
-*Format:*
+if __name__ == "__main__":
+    main()
