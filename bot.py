@@ -57,7 +57,7 @@ default_data = {
         "min_referrals": 10,
         "premium_price": 100,
         "currency": "so'm",
-        "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **Click:** `1234 5678 9012 3456`\n📱 **Payme:** `+998901234567`\n💳 **Uzumbank:** `8600 1234 5678 9012`\n\n✅ To'lov qilgach, chek skrinshotini @admin ga yuboring."
+        "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **HUMO:** `9860356622837710`\n📱 **Payme:** `mavjud emas`\n💳 **Uzumbank visa:** `4916990318695001`\n\n✅ To'lov qilgach, chek skrinshotini @baxtga_olga ga yuboring."
     },
     "stats": {
         "total_users": 0,
@@ -607,8 +607,7 @@ async def show_help(query):
 • 10 ta referal = Bepul Premium
 
 📞 *Qo'llab-quvvatlash:*
-Murojaatlar uchun: @admin
-
+Murojaatlar uchun: @baxtga_olga
 🚀 *Bot har kuni yangilanadi va yangi kuponlar qo'shiladi!*
 """
     
