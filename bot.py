@@ -17,9 +17,9 @@ DATA_FILE = "data.json"
 
 # Bukmekerlar havolalari
 BUKMAKER_LINKS = {
-    "1xbet": "https://1xbet.com",
-    "melbet": "https://melbet.com", 
-    "dbbet": "https://dbbet.com"
+    "1xbet": "https://reffpa.com/L?tag=d_4147173m_1599c_&site=4147173&ad=1599&r=registration",
+    "melbet": "https://refpa42380.com/L?tag=s_4856673m_57037c_&site=4856673&ad=57037", 
+    "dbbet": "https://refpa96317.com/L?tag=d_4585917m_11213c_&site=4585917&ad=11213"
 }
 
 # Loggerni sozlash
@@ -55,7 +55,7 @@ default_data = {
     },
     "settings": {
         "min_referrals": 10,
-        "premium_price": 100,
+        "premium_price": 100000,
         "currency": "so'm",
         "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **HUMO:** `9860356622837710`\n📱 **Payme:** `mavjud emas`\n💳 **Uzumbank visa:** `4916990318695001`\n\n✅ To'lov qilgach, chek skrinshotini @baxtga_olga ga yuboring."
     },
@@ -133,7 +133,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 1-qator: Asosiy kuponlar
         [
             InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="today_coupons"),
-            InlineKeyboardButton("💎 Premium Kuponlar", callback_data="premium_coupons")
+            InlineKeyboardButton("💎 100% kupon", callback_data="premium_coupons")
         ],
         # 2-qator: Referal va ulashish
         [
@@ -170,7 +170,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✅ Tez natijalar
 
 💰 *Premium imkoniyatlari:*
-• 10 ta referal yoki 100 so'm
+• 10 ta referal yoki 100 000 so'm
 • Ekskluziv kuponlar
 • Statistik tahlillar
 • Shaxsiy qo'llab-quvvatlash
@@ -580,7 +580,7 @@ async def share_referral_link(query, user_id):
 💎 Premium ekskluziv bashoratlar
 💰 Yuqori daromadli stavkalar
 
-🎁 10 ta referal yoki 100 so'm to'lov bilan Premium oching!
+🎁 10 ta referal yoki 100 000 so'm to'lov bilan Premium oching!
 
 Botga kirib, daromad olishni boshlang:
 {ref_link}"""
@@ -609,7 +609,7 @@ async def show_help(query):
 
 💎 *Premium Olish:*
 • **10 ta referal** to'plang
-• **100 so'm** to'lov qiling
+• **100 000 so'm** to'lov qiling
 • Premium kuponlarga ega bo'ling
 
 🔗 *Referal Tizimi:*
