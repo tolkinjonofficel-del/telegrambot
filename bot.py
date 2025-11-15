@@ -57,13 +57,12 @@ default_data = {
         "min_referrals": 10,
         "premium_price": 100,
         "currency": "so'm",
-        "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **Click:** `1234 5678 9012 3456`\n📱 **Payme:** `+998901234567`\n💳 **Uzumbank:** `8600 1234 5678 9012`\n\n✅ To'lov qilgach, chek skrinshotini shu yerga yuboring."
+        "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **Click:** `1234 5678 9012 3456`\n📱 **Payme:** `+998901234567`\n💳 **Uzumbank:** `8600 1234 5678 9012`\n\n✅ To'lov qilgach, chek skrinshotini @admin ga yuboring."
     },
     "stats": {
         "total_users": 0,
         "premium_users": 0
-    },
-    "payments": {}  # Yangi: To'lovlar ma'lumotlari
+    }
 }
 
 def load_data():
@@ -103,9 +102,6 @@ def get_user_referrals(user_id):
 def generate_coupon_code():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
-def generate_payment_id():
-    return ''.join(random.choices(string.digits, k=6))
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
@@ -115,8 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data['users'][str(user_id)] = {
             'name': user.first_name,
             'referrals': 0,
-            'premium': False,
-            'joined_date': str(update.message.date)
+            'premium': False
         }
         data['stats']['total_users'] += 1
         save_data(data)
@@ -226,8 +221,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await edit_coupon_codes_selection(query)
     elif query.data == "admin_payment_settings":
         await show_payment_settings(query)
-    elif query.data == "admin_pending_payments":
-        await show_pending_payments(query)
     elif query.data.startswith("add_"):
         coupon_type = query.data.replace("add_", "")
         await start_adding_coupon(query, context, coupon_type)
@@ -244,14 +237,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await activate_free_premium(query, user_id)
     elif query.data.startswith("bet_"):
         await show_bet_platform(query, query.data.replace("bet_", ""))
-    elif query.data == "upload_screenshot":
-        await request_screenshot(query, user_id)
-    elif query.data.startswith("approve_"):
-        payment_id = query.data.replace("approve_", "")
-        await approve_payment(query, payment_id)
-    elif query.data.startswith("reject_"):
-        payment_id = query.data.replace("reject_", "")
-        await reject_payment(query, payment_id)
 
 async def send_today_coupons(query):
     today_coupons = data['coupons']['today']
@@ -396,27 +381,22 @@ async def show_bet_platform(query, platform):
 
 🔑 **Kupon Kodi:** `{coupon_code}`
 
-📱 **Platformaga o'tish uchun quyidagi tugmalardan foydalaning:**
+📱 **Platformaga o'tish uchun quyidagi havolani bosing:**
+{platform_link}
+
+💡 *Qanday foydalanish:*
+1. Havolani bosing yoki {platform_name} saytiga o'ting
+2. Ro'yxatdan o'ting/Hisobingizga kiring
+3. Kupon kodini kiriting: `{coupon_code}`
+4. Kuponni qo'shing va stavka qiling!
+
+✅ *Eslatma:* Kupon kodini faqat bir marta ishlatish mumkin.
 """
     
-    # Shaffof tugmalar qatorlari
     keyboard = [
-        # 1-qator: Asosiy sayt va APK yuklash
-        [
-            InlineKeyboardButton("🌐 Saytga O'tish", url=platform_link),
-            InlineKeyboardButton("📱 APK Yuklash", url="https://t.me/bonusliapkbot")
-        ],
-        # 2-qator: Orqaga tugmasi
+        [InlineKeyboardButton(f"🌐 {platform_name} Saytiga O'tish", url=platform_link)],
         [InlineKeyboardButton("🔙 Kuponlarga Qaytish", callback_data="back_to_coupons")]
     ]
-    
-    text += f"\n💡 *Qanday foydalanish:*\n"
-    text += f"1. Saytga o'ting yoki APK yuklang\n"
-    text += f"2. Ro'yxatdan o'ting/Hisobingizga kiring\n"
-    text += f"3. Kupon kodini kiriting: `{coupon_code}`\n"
-    text += f"4. Kuponni qo'shing va stavka qiling!\n\n"
-    text += f"✅ *Eslatma:* Kupon kodini faqat bir marta ishlatish mumkin."
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
@@ -483,223 +463,16 @@ async def show_premium_payment(query, user_id):
 📋 *Qadamlar:*
 1. Yuqoridagi raqamlarga to'lov qiling
 2. Chek skrinshotini oling
-3. Quyidagi tugma orqali skrinshotni yuboring
-4. Admin tekshirib, Premium ochadi!
+3. @admin ga yuboring
+4. Premium ochiladi!
 
 ⏰ *Eslatma:* To'lov qilgach, tez orada premium ochiladi.
 """
     
     keyboard = [
-        [InlineKeyboardButton("📸 Skrinshot Yuborish", callback_data="upload_screenshot")],
         [InlineKeyboardButton("👥 Referal Orqali Olish", callback_data="premium_coupons")],
         [InlineKeyboardButton("🔗 Do'stlarni Taklif Qilish", callback_data="share_referral")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def request_screenshot(query, user_id):
-    """Skrinshot yuborish so'rovini yuborish"""
-    text = """
-📸 *Skrinshot Yuborish*
-
-Endi to'lov chekining skrinshotini shu yerga yuboring:
-
-📎 *Eslatmalar:*
-• Rasm yoki skrinshot bo'lishi kerak
-• To'lov summasi va vaqti ko'rinishi kerak
-• Hisob raqami ko'rinishi kerak
-
-🕐 *Tekshirish vaqti:* 1-24 soat
-
-✅ Tekshirib bo'lingach, sizga Premium ochiladi!
-"""
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="buy_premium")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-
-async def handle_payment_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """To'lov skrinshotini qabul qilish"""
-    user_id = update.effective_user.id
-    
-    if update.message.photo:
-        # Rasm qabul qilindi
-        photo = update.message.photo[-1]
-        payment_id = generate_payment_id()
-        
-        # To'lov ma'lumotlarini saqlash
-        data['payments'][payment_id] = {
-            'user_id': user_id,
-            'user_name': update.effective_user.first_name,
-            'photo_id': photo.file_id,
-            'status': 'pending',
-            'date': str(update.message.date),
-            'amount': data['settings']['premium_price'],
-            'currency': data['settings']['currency']
-        }
-        save_data(data)
-        
-        # Adminlarga xabar berish
-        await notify_admins_about_payment(payment_id, context)
-        
-        await update.message.reply_text(
-            f"✅ *Skrinshot qabul qilindi!*\n\n"
-            f"🆔 **To'lov ID:** `{payment_id}`\n"
-            f"💰 **Summa:** {data['settings']['premium_price']} {data['settings']['currency']}\n\n"
-            f"⏳ *Holat:* Admin tekshiruvi kutilmoqda\n"
-            f"🕐 Tekshirish vaqti: 1-24 soat\n\n"
-            f"Tasdiqlanganidan so'ng Premium avtomatik ochiladi!",
-            parse_mode='Markdown'
-        )
-    else:
-        await update.message.reply_text(
-            "❌ Iltimos, to'lov chekining *skrinshotini* (rasm) yuboring!",
-            parse_mode='Markdown'
-        )
-
-async def notify_admins_about_payment(payment_id, context: ContextTypes.DEFAULT_TYPE):
-    """Adminlarga yangi to'lov haqida xabar berish"""
-    payment = data['payments'][payment_id]
-    user_id = payment['user_id']
-    user_name = payment['user_name']
-    
-    text = f"""
-🆕 *YANGI TO'LOV SO'ROVI*
-
-🆔 **To'lov ID:** `{payment_id}`
-👤 **Foydalanuvchi:** {user_name} (ID: {user_id})
-💰 **Summa:** {payment['amount']} {payment['currency']}
-📅 **Sana:** {payment['date']}
-
-Tasdiqlash yoki rad etish uchun quyidagi tugmalardan foydalaning:
-"""
-    
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"approve_{payment_id}"),
-            InlineKeyboardButton("❌ Rad Etish", callback_data=f"reject_{payment_id}")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # Adminlarga xabar yuborish
-    try:
-        await context.bot.send_photo(
-            chat_id=ADMIN_ID,
-            photo=payment['photo_id'],
-            caption=text,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        logger.error(f"Adminga xabar yuborishda xato: {e}")
-
-async def approve_payment(query, payment_id):
-    """To'lovni tasdiqlash"""
-    if payment_id in data['payments']:
-        payment = data['payments'][payment_id]
-        user_id = payment['user_id']
-        
-        # Premium ochish
-        data['users'][str(user_id)]['premium'] = True
-        data['payments'][payment_id]['status'] = 'approved'
-        data['stats']['premium_users'] += 1
-        save_data(data)
-        
-        # Foydalanuvchiga xabar
-        try:
-            await query.bot.send_message(
-                chat_id=user_id,
-                text=f"""
-🎉 *TABRIKLAYMIZ!*
-
-✅ To'lovingiz tasdiqlandi!
-💎 Premium a'zoligingiz faollashtirildi!
-
-Endi siz Premium kuponlardan foydalanishingiz mumkin.
-
-📊 **Premium afzalliklari:**
-• Yuqori daromadli kuponlar
-• Ekskluziv bashoratlar
-• 90-95% ishonchlilik
-• Statistik tahlillar
-
-🚀 Premium kuponlarni ko'rish uchun /start buyrug'idan foydalaning!
-""",
-                parse_mode='Markdown'
-            )
-        except Exception as e:
-            logger.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
-        
-        await query.edit_message_text(
-            f"✅ *To'lov tasdiqlandi!*\n\n"
-            f"🆔 To'lov ID: `{payment_id}`\n"
-            f"👤 Foydalanuvchi: {payment['user_name']}\n"
-            f"💰 Summa: {payment['amount']} {payment['currency']}\n\n"
-            f"Premium muvaffaqiyatli ochildi!",
-            parse_mode='Markdown'
-        )
-    else:
-        await query.answer("❌ To'lov topilmadi!")
-
-async def reject_payment(query, payment_id):
-    """To'lovni rad etish"""
-    if payment_id in data['payments']:
-        payment = data['payments'][payment_id]
-        user_id = payment['user_id']
-        
-        data['payments'][payment_id]['status'] = 'rejected'
-        save_data(data)
-        
-        # Foydalanuvchiga xabar
-        try:
-            await query.bot.send_message(
-                chat_id=user_id,
-                text=f"""
-❌ *To'lov rad etildi*
-
-To'lov chekingiz quyidagi sabablarga ko'ra rad etildi:
-• Noto'g'ri skrinshot
-• Summa noto'g'ri
-• Boshqa muammolar
-
-Iltimos, qaytadan to'lov qiling va to'g'ri skrinshot yuboring.
-
-📞 Yordam kerak bo'lsa: @admin
-""",
-                parse_mode='Markdown'
-            )
-        except Exception as e:
-            logger.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
-        
-        await query.edit_message_text(
-            f"❌ *To'lov rad etildi!*\n\n"
-            f"🆔 To'lov ID: `{payment_id}`\n"
-            f"👤 Foydalanuvchi: {payment['user_name']}\n"
-            f"💰 Summa: {payment['amount']} {payment['currency']}",
-            parse_mode='Markdown'
-        )
-    else:
-        await query.answer("❌ To'lov topilmadi!")
-
-async def show_pending_payments(query):
-    """Kutilayotgan to'lovlarni ko'rsatish"""
-    pending_payments = {k: v for k, v in data['payments'].items() if v['status'] == 'pending'}
-    
-    if not pending_payments:
-        text = "📭 *Kutilayotgan to'lovlar yo'q*"
-    else:
-        text = f"⏳ *Kutilayotgan To'lovlar:* {len(pending_payments)} ta\n\n"
-        for payment_id, payment in list(pending_payments.items())[:10]:  # Faqat 10 tasini ko'rsatish
-            text += f"🆔 `{payment_id}` - {payment['user_name']} - {payment['amount']} {payment['currency']}\n"
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -753,23 +526,113 @@ Siz muvaffaqiyatli Premium a'zoga aylandingiz! 🎊
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# ... (qolgan funksiyalar o'zgarmaydi, faqat admin paneliga yangi tugma qo'shildi)
+async def show_referral_link(query, user_id):
+    bot_username = (await query.message._bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref{user_id}"
+    referrals_count = get_user_referrals(user_id)
+    required_refs = data['settings']['min_referrals']
+    
+    text = f"""
+📤 *REFERAL HAVOLANGIZ*
 
+`{ref_link}`
+
+📊 **Sizning statistikangiz:**
+👥 Referallar: {referrals_count}/{required_refs} ta
+🎯 Maqsad: {required_refs} ta (Bepul Premium)
+
+💡 **Qanday ishlatish:**
+1. Havolani nusxalang
+2. Do'stlaringizga yuboring
+3. Har bir yangi foydalanuvchi +1 referal
+4. {required_refs} ta referal = Bepul Premium!
+
+🔗 Havolani ko'proq odamga yuboring, tezroq Premiumga ega bo'ling!
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🔗 TELEGRAMDA ULASHISH", callback_data="share_referral")],
+        [InlineKeyboardButton("💎 Premium Olish", callback_data="premium_coupons")],
+        [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def share_referral_link(query, user_id):
+    """Havolani ulashish"""
+    bot_username = (await query.message._bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref{user_id}"
+    
+    share_text = f"""🎯 *Futbol Kuponlari Boti*
+
+⚽ Kunlik bepul kuponlar
+💎 Premium ekskluziv bashoratlar
+💰 Yuqori daromadli stavkalar
+
+🎁 10 ta referal yoki 100 so'm to'lov bilan Premium oching!
+
+Botga kirib, daromad olishni boshlang:
+{ref_link}"""
+
+    keyboard = [
+        [InlineKeyboardButton("📤 TELEGRAMDA ULASHISH", url=f"https://t.me/share/url?url={ref_link}&text=🎯 Futbol Kuponlari Boti - Kunlik bepul kuponlar va premium bashoratlar!")],
+        [InlineKeyboardButton("👥 Referal Statistikasi", callback_data="get_referral_link")],
+        [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "🔗 *Havolani quyidagi tugma orqali osongina ulashing:*\n\n"
+        "Tugmani bosing va do'stlaringizga yuboring!",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def show_help(query):
+    text = """
+ℹ️ *BOTDAN FOYDALANISH QO'LLANMASI*
+
+⚽ *Kuponlar:*
+• **Bugungi kuponlar** - Kunlik yangilanadigan bepul bashoratlar
+• **Premium kuponlar** - Yuqori daromadli ekskluziv kuponlar
+
+💎 *Premium Olish:*
+• **10 ta referal** to'plang
+• **100 so'm** to'lov qiling
+• Premium kuponlarga ega bo'ling
+
+🔗 *Referal Tizimi:*
+• Do'stlaringizni taklif qiling
+• Har bir referal sizga +1 ball
+• 10 ta referal = Bepul Premium
+
+📞 *Qo'llab-quvvatlash:*
+Murojaatlar uchun: @admin
+
+🚀 *Bot har kuni yangilanadi va yangi kuponlar qo'shiladi!*
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🔗 Havolani Ulashish", callback_data="share_referral")],
+        [InlineKeyboardButton("💎 Premium Olish", callback_data="premium_coupons")],
+        [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+# ADMIN FUNCTIONS
 async def show_admin_panel(query):
     today_status = "🟢 Faol" if data['coupons']['today']['active'] else "🔴 Nofaol"
     premium_status = "🟢 Faol" if data['coupons']['premium']['active'] else "🔴 Nofaol"
     today_count = len(data['coupons']['today']['matches'])
     premium_count = len(data['coupons']['premium']['matches'])
     
-    pending_payments = sum(1 for p in data['payments'].values() if p['status'] == 'pending')
-    
     text = f"""
 👑 *ADMIN PANELI*
 
 📊 **Bot Statistikasi:**
 👥 Foydalanuvchilar: {data['stats']['total_users']} ta
-💎 Premium foydalanuvchilar: {data['stats']['premium_users']} ta
-⏳ Kutilayotgan to'lovlar: {pending_payments} ta
+💎 Premium foydalanuvchilar: {sum(1 for user in data['users'].values() if user.get('premium', False))} ta
 
 ⚽ **Kuponlar Holati:**
 📅 Bugungi kuponlar: {today_status} ({today_count} ta)
@@ -784,13 +647,300 @@ async def show_admin_panel(query):
         [InlineKeyboardButton("🔄 Faol/O'chirish", callback_data="admin_toggle_coupons")],
         [InlineKeyboardButton("🗑️ Kuponlarni Tozalash", callback_data="admin_clear_coupons")],
         [InlineKeyboardButton("💳 To'lov Sozlamalari", callback_data="admin_payment_settings")],
-        [InlineKeyboardButton("⏳ Kutilayotgan To'lovlar", callback_data="admin_pending_payments")],
         [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# ... (qolgan funksiyalar bir xil)
+async def show_coupon_type_selection(query):
+    text = "📋 *Qaysi kupon turiga kupon qo'shmoqchisiz?*"
+    
+    keyboard = [
+        [InlineKeyboardButton("⚽ Bugungi Kupon", callback_data="add_today")],
+        [InlineKeyboardButton("💎 Premium Kupon", callback_data="add_premium")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def start_adding_coupon(query, context: ContextTypes.DEFAULT_TYPE, coupon_type: str):
+    context.user_data['adding_coupon'] = True
+    context.user_data['coupon_type'] = coupon_type
+    
+    coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+    
+    await query.edit_message_text(
+        f"✏️ *{coupon_name} Kupon Qo'shish*\n\n"
+        "Quyidagi formatda ma'lumot yuboring:\n\n"
+        "`sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch|1xbet_kodi|melbet_kodi|dbbet_kodi`\n\n"
+        "*Misol:*\n"
+        "`2024-01-20|20:00|Premier League|Man City vs Arsenal|1X|1.50|85%|1XBET123|MELBET456|DBBET789`\n\n"
+        "📝 *Eslatma:* Bir nechta kupon qo'shish uchun har birini alohida yuboring.",
+        parse_mode='Markdown'
+    )
+
+async def toggle_coupons_selection(query):
+    text = "🔄 *Qaysi kuponlarni o'zgartirmoqchisiz?*"
+    
+    keyboard = [
+        [InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="toggle_today")],
+        [InlineKeyboardButton("💎 Premium Kuponlar", callback_data="toggle_premium")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def toggle_specific_coupons(query, coupon_type: str):
+    data['coupons'][coupon_type]['active'] = not data['coupons'][coupon_type]['active']
+    save_data(data)
+    
+    coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+    status = "faol" if data['coupons'][coupon_type]['active'] else "nofaol"
+    await query.message.reply_text(f"✅ {coupon_name} kuponlar {status} holatga o'zgartirildi!")
+    await show_admin_panel(query)
+
+async def clear_coupons_selection(query):
+    text = "🗑️ *Qaysi kuponlarni tozalamoqchisiz?*"
+    
+    keyboard = [
+        [InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="clear_today")],
+        [InlineKeyboardButton("💎 Premium Kuponlar", callback_data="clear_premium")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def clear_specific_coupons(query, coupon_type: str):
+    data['coupons'][coupon_type]['matches'] = []
+    # Yangi kodlar yaratish
+    data['coupons'][coupon_type]['coupon_codes'] = {
+        "1xbet": generate_coupon_code(),
+        "melbet": generate_coupon_code(),
+        "dbbet": generate_coupon_code()
+    }
+    save_data(data)
+    
+    coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+    await query.message.reply_text(f"✅ {coupon_name} kuponlar tozalandi va yangi kodlar yaratildi!")
+    await show_admin_panel(query)
+
+async def edit_coupon_codes_selection(query):
+    text = "🔑 *Qaysi kupon kodlarini o'zgartirmoqchisiz?*"
+    
+    keyboard = [
+        [InlineKeyboardButton("⚽ Bugungi Kupon Kodlari", callback_data="edit_codes_today")],
+        [InlineKeyboardButton("💎 Premium Kupon Kodlari", callback_data="edit_codes_premium")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def start_editing_codes(query, context: ContextTypes.DEFAULT_TYPE, coupon_type: str):
+    context.user_data['editing_codes'] = True
+    context.user_data['coupon_type'] = coupon_type
+    
+    current_codes = data['coupons'][coupon_type]['coupon_codes']
+    coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+    
+    text = f"""
+✏️ *{coupon_name} Kupon Kodlarini O'zgartirish*
+
+🆔 **Joriy kodlar:**
+• 1xBet: `{current_codes.get('1xbet', 'Mavjud emas')}`
+• MelBet: `{current_codes.get('melbet', 'Mavjud emas')}`
+• DB Bet: `{current_codes.get('dbbet', 'Mavjud emas')}`
+
+Yangi kodlarni quyidagi formatda yuboring:
+
+`1xbet_kodi|melbet_kodi|dbbet_kodi`
+
+*Misol:*
+`1XBET123|MELBET456|DBBET789`
+"""
+    
+    await query.edit_message_text(text, parse_mode='Markdown')
+
+async def show_payment_settings(query):
+    payment_details = data['settings']['payment_details']
+    
+    text = f"""
+💳 *TO'LOV SOZLAMALARI*
+
+💰 **Premium narxi:** {data['settings']['premium_price']} {data['settings']['currency']}
+👥 **Referal talabi:** {data['settings']['min_referrals']} ta
+
+📋 **Joriy to'lov rekvizitlari:**
+{payment_details}
+
+To'lov rekvizitlarini o'zgartirish uchun yangi matn yuboring.
+"""
+    
+    keyboard = [
+        [InlineKeyboardButton("✏️ Rekvizitlarni Tahrirlash", callback_data="edit_payment_details")],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="admin")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        return
+    
+    # Kupon qo'shish rejimi
+    if context.user_data.get('adding_coupon'):
+        await process_coupon_addition(update, context)
+        return
+    
+    # Kodlarni o'zgartirish rejimi
+    if context.user_data.get('editing_codes'):
+        await process_codes_edit(update, context)
+        return
+    
+    # To'lov rekvizitlarini tahrirlash
+    if context.user_data.get('editing_payment'):
+        await process_payment_edit(update, context)
+        return
+
+async def process_coupon_addition(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        message_text = update.message.text
+        parts = message_text.split('|')
+        
+        if len(parts) < 10:
+            await update.message.reply_text("❌ Noto'g'ri format! 10 ta parametr kerak.")
+            return
+        
+        date, time, league, teams, prediction, odds, confidence, code_1xbet, code_melbet, code_dbbet = parts[:10]
+        coupon_type = context.user_data.get('coupon_type', 'today')
+        
+        new_match = {
+            'time': time.strip(),
+            'league': league.strip(),
+            'teams': teams.strip(),
+            'prediction': prediction.strip(),
+            'odds': odds.strip(),
+            'confidence': confidence.strip()
+        }
+        
+        # Birinchi kupon qo'shilganda kodlarni saqlash
+        if not data['coupons'][coupon_type]['matches']:
+            data['coupons'][coupon_type]['coupon_codes'] = {
+                "1xbet": code_1xbet.strip(),
+                "melbet": code_melbet.strip(),
+                "dbbet": code_dbbet.strip()
+            }
+        
+        data['coupons'][coupon_type]['matches'].append(new_match)
+        data['coupons'][coupon_type]['date'] = date.strip()
+        save_data(data)
+        
+        coupon_codes = data['coupons'][coupon_type]['coupon_codes']
+        coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+        matches_count = len(data['coupons'][coupon_type]['matches'])
+        
+        await update.message.reply_text(
+            f"✅ *{coupon_name} kupon qo'shildi!*\n\n"
+            f"🔑 **Kupon Kodlari:**\n"
+            f"• 1xBet: `{coupon_codes.get('1xbet', '')}`\n"
+            f"• MelBet: `{coupon_codes.get('melbet', '')}`\n"
+            f"• DB Bet: `{coupon_codes.get('dbbet', '')}`\n\n"
+            f"📊 **Jami kuponlar:** {matches_count} ta\n"
+            f"📅 **Sana:** {date}\n\n"
+            f"Yana kupon qo'shishingiz mumkin yoki /start buyrug'i orqali bosh menyuga qayting.",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+    
+    context.user_data.pop('adding_coupon', None)
+    context.user_data.pop('coupon_type', None)
+
+async def process_codes_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        message_text = update.message.text
+        parts = message_text.split('|')
+        
+        if len(parts) < 3:
+            await update.message.reply_text("❌ Noto'g'ri format! 3 ta kod kerak.")
+            return
+        
+        code_1xbet, code_melbet, code_dbbet = parts[:3]
+        coupon_type = context.user_data.get('coupon_type', 'today')
+        
+        # Yangi kodlarni saqlash
+        data['coupons'][coupon_type]['coupon_codes'] = {
+            "1xbet": code_1xbet.strip(),
+            "melbet": code_melbet.strip(),
+            "dbbet": code_dbbet.strip()
+        }
+        save_data(data)
+        
+        coupon_name = "Bugungi" if coupon_type == "today" else "Premium"
+        
+        await update.message.reply_text(
+            f"✅ *{coupon_name} kupon kodlari yangilandi!*\n\n"
+            f"🔑 **Yangi kodlar:**\n"
+            f"• 1xBet: `{code_1xbet.strip()}`\n"
+            f"• MelBet: `{code_melbet.strip()}`\n"
+            f"• DB Bet: `{code_dbbet.strip()}`",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+    
+    context.user_data.pop('editing_codes', None)
+    context.user_data.pop('coupon_type', None)
+
+async def process_payment_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        new_payment_details = update.message.text
+        data['settings']['payment_details'] = new_payment_details
+        save_data(data)
+        
+        await update.message.reply_text("✅ To'lov rekvizitlari yangilandi!")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xato: {e}")
+    
+    context.user_data.pop('editing_payment', None)
+
+async def back_to_main(query):
+    user = query.from_user
+    user_id = user.id
+    
+    # Chiroyli va 3 qatorli tugmalar
+    keyboard = [
+        # 1-qator: Asosiy kuponlar
+        [
+            InlineKeyboardButton("⚽ Bugungi Kuponlar", callback_data="today_coupons"),
+            InlineKeyboardButton("💎 Premium Kuponlar", callback_data="premium_coupons")
+        ],
+        # 2-qator: Referal va ulashish
+        [
+            InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link"),
+            InlineKeyboardButton("🔗 Ulashish", callback_data="share_referral")
+        ],
+        # 3-qator: Yordam va to'lov
+        [
+            InlineKeyboardButton("💳 Premium Sotib Olish", callback_data="buy_premium"),
+            InlineKeyboardButton("ℹ️ Yordam", callback_data="help")
+        ]
+    ]
+    
+    if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await query.edit_message_text(
+        "🎯 *Asosiy Menyu*\n\n"
+        "Quyidagi tugmalardan foydalanib botdan to'liq foydalaning! 🚀",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 def main():
     try:
@@ -800,13 +950,11 @@ def main():
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CallbackQueryHandler(button_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_message))
-        app.add_handler(MessageHandler(filters.PHOTO, handle_payment_screenshot))
         
         print("✅ Bot muvaffaqiyatli ishga tushdi!")
         print("🤖 Bot ishlayapti...")
         print(f"👑 Admin ID: {ADMIN_ID}")
-        print("🎰 Bukmeker tugmalari yangilandi!")
-        print("💳 To'lov tizimi qo'shildi!")
+        print("🎰 Bukmeker tugmalari qo'shildi: 1xBet, MelBet, DB Bet")
         
         app.run_polling()
         
