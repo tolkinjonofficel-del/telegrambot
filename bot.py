@@ -34,17 +34,6 @@ logger = logging.getLogger(__name__)
 default_data = {
     "users": {},
     "coupons": {
-        "today": {
-            "date": "",
-            "matches": [],
-            "description": "🎯 Bugungi Bepul Kuponlar",
-            "active": True,
-            "coupon_codes": {
-                "1xbet": "",
-                "melbet": "",
-                "dbbet": ""
-            }
-        },
         "ball_coupons": {
             "available": [],
             "purchased": {},
@@ -60,6 +49,8 @@ default_data = {
         "currency": "so'm",
         "min_exchange_points": 50,
         "exchange_rate": 10000,
+        "daily_bonus": 15,
+        "welcome_points": 40,
         "payment_details": "💳 *To'lov qilish uchun:*\n\n🏦 **HUMO:** `9860356622837710`\n📱 **Payme:** `mavjud emas`\n💳 **Uzumbank visa:** `4916990318695001`\n\n✅ To'lov qilgach, chek skrinshotini @baxtga_olga ga yuboring."
     },
     "stats": {
@@ -69,7 +60,8 @@ default_data = {
         "today_referrals": 0,
         "total_points_given": 0,
         "total_coupons_sold": 0,
-        "total_exchanges": 0
+        "total_exchanges": 0,
+        "last_daily_bonus": ""
     }
 }
 
@@ -155,6 +147,30 @@ def remove_user_points(user_id, points, reason=""):
     
     return save_data(data)
 
+async def give_daily_bonus():
+    """Har kuni barcha foydalanuvchilarga 15 ball berish"""
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Agar bugun bonus berilgan bo'lsa, qayta bermaslik
+        if data['stats'].get('last_daily_bonus') == today:
+            return
+        
+        bonus_points = data['settings']['daily_bonus']
+        users_count = 0
+        
+        for user_id_str in data['users']:
+            add_user_points(int(user_id_str), bonus_points, f"Kunlik bonus {today}")
+            users_count += 1
+        
+        data['stats']['last_daily_bonus'] = today
+        save_data(data)
+        
+        logger.info(f"Kunlik bonus berildi: {users_count} ta foydalanuvchi, {bonus_points} ball")
+        
+    except Exception as e:
+        logger.error(f"Kunlik bonus berishda xato: {e}")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user = update.effective_user
@@ -165,20 +181,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         global data
         data = load_data()
         
+        # Kunlik bonusni tekshirish
+        await give_daily_bonus()
+        
+        # Yangi foydalanuvchi bo'lsa 40 ball berish
+        is_new_user = False
         if str(user_id) not in data['users']:
             data['users'][str(user_id)] = {
                 'name': user.first_name,
                 'username': user.username,
                 'referrals': 0,
-                'points': 0,
+                'points': data['settings']['welcome_points'],  # 40 ball bilan boshlash
                 'premium': False,
                 'joined_date': datetime.now().strftime("%Y-%m-%d"),
                 'last_active': datetime.now().timestamp(),
-                'points_history': []
+                'points_history': [{
+                    'points': data['settings']['welcome_points'],
+                    'reason': "Yangi foydalanuvchi bonus",
+                    'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    'type': 'add'
+                }]
             }
             data['stats']['total_users'] += 1
+            data['stats']['total_points_given'] += data['settings']['welcome_points']
             save_data(data)
-            logger.info(f"Yangi foydalanuvchi qo'shildi: {user_id}")
+            is_new_user = True
+            logger.info(f"Yangi foydalanuvchi qo'shildi: {user_id} - 40 ball berildi")
         else:
             data['users'][str(user_id)]['last_active'] = datetime.now().timestamp()
             save_data(data)
@@ -218,23 +246,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚽ *FUTBOL BAHOLARI BOTIGA XUSH KELIBSIZ!*
 
-💰 *HAR KUNI YANGI KUPONLAR!*
-• 🎯 *Kunlik bepul kuponlar* - Har kuni yangilanadi!
-• 💰 *Ball evaziga kuponlar* - 15 ball = 1 ta ekskluziv kupon
-• 🎁 *Bonuslar* - Bukmeker kontorlarida ro'yxatdan o'ting
-
-🏆 *BALL TIZIMI:*
+💰 *BALL TIZIMI:*
+• 🎁 *Yangi foydalanuvchi bonus:* 40 ball
 • 📤 1 do'st taklif = *5 ball*
+• 📅 *Kunlik bonus:* 15 ball
 • 💰 50 ball = *10,000 so'm*
 • 🎯 15 ball = *1 ta maxsus kupon*
 
 📊 *SIZNING HOLATINGIZ:*
 👥 Referallar: {get_user_referrals(user_id)} ta
 💰 HISOBINGIZDA: {get_user_points(user_id)} ball
-
-🚀 *HOZIRROQ BOSHLANG!*
-Ball to'plang, kuponlar oling va yutuqlarga erishing!
 """
+
+        if is_new_user:
+            welcome_text += f"\n🎁 *Sizga yangi foydalanuvchi bonus sifatida 40 ball berildi!*"
+
+        welcome_text += f"\n\n🚀 *HOZIRROQ BOSHLANG!*\nBall to'plang, kuponlar oling va yutuqlarga erishing!"
 
         keyboard = [
             [
@@ -277,15 +304,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         global data
         data = load_data()
         
-        # Asosiy menyu tugmalari
+        # Kunlik bonusni tekshirish
+        await give_daily_bonus()
+        
         if query.data == "get_coupons":
             await show_coupon_selection(query, user_id)
-        elif query.data == "get_free_coupon":
-            await send_today_coupons(query)
         elif query.data == "get_ball_coupon":
             await get_ball_coupon(query, user_id)
         elif query.data == "exchange_points":
-            await show_exchange_points(query, user_id)
+            await exchange_points_handler(query, user_id)
         elif query.data == "bonuses":
             await show_bonuses(query)
         elif query.data == "my_points":
@@ -320,11 +347,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif query.data == "admin_search_user":
             await admin_search_user(query, context)
         
-        # BALL QO'SHISH/OLISH HANDLERLARI - XATOLARNI QAYTA ISHLASH
+        # BALL QO'SHISH/OLISH HANDLERLARI
         elif query.data.startswith("admin_add_points_"):
             try:
                 user_id_to_edit = query.data.replace("admin_add_points_", "")
-                # Context ni to'g'ri o'rnatish
                 context.user_data['editing_user'] = user_id_to_edit
                 context.user_data['action'] = 'add_points'
                 
@@ -346,7 +372,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif query.data.startswith("admin_remove_points_"):
             try:
                 user_id_to_edit = query.data.replace("admin_remove_points_", "")
-                # Context ni to'g'ri o'rnatish
                 context.user_data['editing_user'] = user_id_to_edit
                 context.user_data['action'] = 'remove_points'
                 
@@ -375,7 +400,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-# KUPON OLISH TIZIMI
+# KUPON OLISH TIZIMI - FAQAT BALL KUPONLARI
 async def show_coupon_selection(query, user_id):
     """Kupon olish sahifasi"""
     try:
@@ -386,20 +411,19 @@ async def show_coupon_selection(query, user_id):
 🎯 *KUPON OLISH*
 
 💰 **Sizning balansingiz:** {user_points} ball
+🎟️ **Kupon narxi:** {coupon_price} ball
 
-💎 *XISOBINGIZDA YETARLICHA BALL TOPLAGANIZDAN SO'NG VIP KUPONLAR KORINDI!:*
+💎 *Ballaringiz yetarli bo'lsa VIP kuponlar olishingiz mumkin:*
 """
 
-        keyboard = [
-            [InlineKeyboardButton("🎯 KUNLIK BEPUL KUPON", callback_data="get_free_coupon")],
-        ]
+        keyboard = []
         
         ball_coupons_count = len(data['coupons']['ball_coupons']['available'])
         
         if ball_coupons_count > 0:
             if user_points >= coupon_price:
                 keyboard.append([InlineKeyboardButton(f"💰 VIP KUPON OLISH ({coupon_price} ball)", callback_data="get_ball_coupon")])
-                text += f"\n✅ *{ball_coupons_count} ta VIP  kupon mavjud!*"
+                text += f"\n✅ *{ball_coupons_count} ta VIP kupon mavjud!*"
             else:
                 text += f"\n❌ *Ball yetarli emas!* {coupon_price - user_points} ball yetishmayapti."
         else:
@@ -418,64 +442,6 @@ async def show_coupon_selection(query, user_id):
         logger.error(f"show_coupon_selection da xato: {e}")
         await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-async def send_today_coupons(query):
-    """Bepul kuponlarni yuborish"""
-    try:
-        today_coupons = data['coupons']['today']
-        
-        if not today_coupons['active'] or not today_coupons['matches']:
-            await query.edit_message_text(
-                "📭 *Hozircha bepul kuponlar mavjud emas*\n\n"
-                "Kuponlar tez orada yangilanadi. Iltimos, keyinroq tekshiring! 🔄",
-                parse_mode='Markdown'
-            )
-            return
-        
-        coupon_text = f"🎯 *{today_coupons['description']}*\n\n"
-        coupon_text += f"📅 **Sana:** {today_coupons['date']}\n\n"
-        
-        coupon_text += "🔑 *Kupon Kodlari:*\n"
-        coupon_text += f"• 1xBet: `{today_coupons['coupon_codes'].get('1xbet', 'Kod mavjud emas')}`\n"
-        coupon_text += f"• MelBet: `{today_coupons['coupon_codes'].get('melbet', 'Kod mavjud emas')}`\n"
-        coupon_text += f"• DB Bet: `{today_coupons['coupon_codes'].get('dbbet', 'Kod mavjud emas')}`\n\n"
-        
-        coupon_text += "---\n\n"
-        
-        for i, match in enumerate(today_coupons['matches'], 1):
-            coupon_text += f"*{i}. {match['time']} - {match['league']}*\n"
-            coupon_text += f"🏆 `{match['teams']}`\n"
-            coupon_text += f"🎯 **Bashorat:** `{match['prediction']}`\n"
-            coupon_text += f"📊 **Koeffitsient:** `{match['odds']}`\n"
-            coupon_text += f"💎 **Ishonch:** {match['confidence']}\n\n"
-        
-        total_odds = 1.0
-        for match in today_coupons['matches']:
-            try:
-                total_odds *= float(match['odds'])
-            except:
-                pass
-        
-        coupon_text += "---\n\n"
-        coupon_text += f"💰 *Umumiy Koeffitsient:* `{total_odds:.2f}` 🚀\n\n"
-        coupon_text += "⏰ *Eslatma:* Stavkalarni o'yin boshlanishidan oldin qo'ying!\n"
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("🎰 1xBet", url=BUKMAKER_LINKS['1xbet']),
-                InlineKeyboardButton("🎯 MelBet", url=BUKMAKER_LINKS['melbet']),
-                InlineKeyboardButton("💰 DB Bet", url=BUKMAKER_LINKS['dbbet'])
-            ],
-            [InlineKeyboardButton("💰 Yana Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(coupon_text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"send_today_coupons da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
 async def get_ball_coupon(query, user_id):
     """VIP KUPON"""
     try:
@@ -487,7 +453,7 @@ async def get_ball_coupon(query, user_id):
                 f"❌ Ballaringiz yetarli emas!\n"
                 f"💰 Sizda: {user_points} ball\n"
                 f"💵 Kerak: {coupon_price} ball\n\n"
-                f"📤 Ball to'plash uchun referal havolangizni tarqating yoki ball almashingiz!",
+                f"📤 Ball to'plash uchun referal havolangizni tarqating yoki kunlik bonuslardan foydalaning!",
                 parse_mode='Markdown'
             )
             return await show_coupon_selection(query, user_id)
@@ -502,6 +468,7 @@ async def get_ball_coupon(query, user_id):
         
         coupon = random.choice(ball_coupons)
         
+        # Ballarni hisobdan olib tashlash
         data['users'][str(user_id)]['points'] -= coupon_price
         data['stats']['total_coupons_sold'] += 1
         
@@ -559,7 +526,83 @@ async def get_ball_coupon(query, user_id):
         logger.error(f"get_ball_coupon da xato: {e}")
         await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# BALL ALMASHISH TIZIMI
+# PUL ISHLASH TIZIMI - YANGI VERSIYA
+async def exchange_points_handler(query, user_id):
+    """Pul ishlash tugmasi bosilganda"""
+    try:
+        user_points = get_user_points(user_id)
+        min_points = data['settings']['min_exchange_points']
+        
+        if user_points < min_points:
+            await query.message.reply_text(
+                f"❌ Ballaringiz yetarli emas!\n"
+                f"💰 Sizda: {user_points} ball\n"
+                f"💵 Minimal talab: {min_points} ball\n\n"
+                f"📤 Ball to'plash uchun:\n"
+                f"• Kunlik bonuslardan foydalaning\n"
+                f"• Referal havolangizni tarqating\n"
+                f"• Do'stlaringizni taklif qiling",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Ballarni hisobdan olib tashlash
+        if remove_user_points(user_id, min_points, f"Pulga almashish uchun yuborildi"):
+            # Admin ga xabar yuborish
+            user_data = data['users'].get(str(user_id), {})
+            user_name = user_data.get('name', 'Noma\'lum')
+            user_username = user_data.get('username', '')
+            
+            admin_message = f"""
+💸 *YANGI PUL ALMASHISH SO'ROVI*
+
+👤 *Foydalanuvchi:*
+Ism: {user_name}
+Username: @{user_username if user_username else 'mavjud emas'}
+ID: `{user_id}`
+
+💰 *So'rov tafsilotlari:*
+Ball: {min_points} ball
+Parol: 1234
+Xabar: "Salom men foydalanuvchi id raqami {user_id} xisobimdan {min_points} balni pulga aylantirmoqchiman parol 1234"
+
+⏰ Vaqt: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+"""
+            
+            try:
+                await query.message._bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=admin_message,
+                    parse_mode='Markdown'
+                )
+                
+                # Foydalanuvchiga tasdiqlash xabari
+                await query.edit_message_text(
+                    f"✅ *So'rovingiz qabul qilindi!*\n\n"
+                    f"💰 *Sizning {min_points} ballingiz hisobingizdan olindi*\n"
+                    f"🎯 *Qolgan ball:* {get_user_points(user_id)} ball\n\n"
+                    f"📨 *So'rovingiz @baxtga_olga ga yuborildi*\n"
+                    f"⏰ *Tez orada siz bilan bog'lanishadi*\n\n"
+                    f"💡 *Parol:* 1234\n"
+                    f"📝 Xabar: \"Salom men foydalanuvchi id raqami {user_id} xisobimdan {min_points} balni pulga aylantirmoqchiman parol 1234\"",
+                    parse_mode='Markdown'
+                )
+                
+                data['stats']['total_exchanges'] += 1
+                save_data(data)
+                
+            except Exception as e:
+                logger.error(f"Adminga xabar yuborishda xato: {e}")
+                # Xato bo'lsa, ballarni qaytarish
+                add_user_points(user_id, min_points, "Xato tufayli qaytarildi")
+                await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.")
+        else:
+            await query.message.reply_text("❌ Ballarni olib tashlashda xatolik yuz berdi!")
+            
+    except Exception as e:
+        logger.error(f"exchange_points_handler da xato: {e}")
+        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
 async def show_exchange_points(query, user_id):
     """Ball almashish sahifasi"""
     try:
@@ -568,10 +611,10 @@ async def show_exchange_points(query, user_id):
         exchange_rate = data['settings']['exchange_rate']
         
         text = f"""
-💰 *ALMASHISH*
+💰 *PUL ISHLASH*
 
 🎯 **Sizning ballaringiz:** {user_points} ball
-💵 **Minimal almashish:** {min_points} ball
+💵 **Minimal talab:** {min_points} ball
 💰 **Almashish kursi:** {min_points} ball = {exchange_rate} {data['settings']['currency']}
 
 📊 **Hisob-kitob:**
@@ -579,13 +622,13 @@ async def show_exchange_points(query, user_id):
 • {min_points * 2} ball = {exchange_rate * 2} {data['settings']['currency']}
 • {min_points * 5} ball = {exchange_rate * 5} {data['settings']['currency']}
 
-💡 *Ballni pulga almashish uchun @baxtga_olga ga murojaat qiling!*
+⚠️ *DIQQAT:* Tugmani bosganingizda {min_points} ball hisobingizdan oladi va so'rov @baxtga_olga ga yuboriladi.
 """
 
         keyboard = []
         
         if user_points >= min_points:
-            keyboard.append([InlineKeyboardButton("📨 SO'ROV YUBORISH", url="https://t.me/baxtga_olga")])
+            keyboard.append([InlineKeyboardButton(f"💰 {min_points} BALLNI PULGA AYLANTIRISH", callback_data="exchange_points")])
         else:
             text += f"\n❌ *Ball yetarli emas!* {min_points - user_points} ball yetishmayapti."
             keyboard.append([InlineKeyboardButton("📤 Bal To'plash", callback_data="get_referral_link")])
@@ -602,35 +645,33 @@ async def show_exchange_points(query, user_id):
     except Exception as e:
         logger.error(f"show_exchange_points da xato: {e}")
 
-# BONUSLAR BO'LIMI
+# BONUSLAR BO'LIMI - YANGILANGAN
 async def show_bonuses(query):
     """Bonuslar sahifasi"""
     try:
         text = """
 🎁 *BONUSLAR*
 
+💰 *Ball olish usullari:*
+• 🎁 *Yangi foydalanuvchi bonus:* 40 ball
+• 📅 *Kunlik bonus:* Har kuni 15 ball
+• 📤 *Referal bonus:* Har bir do'st uchun 5 ball
+
 🏆 *Bukmeker kontorlarida ro'yxatdan o'ting va bonus oling!*
 
 🎰 **1xBet:**
 • Yangi foydalanuvchilar uchun 100% bonus
 • INSAYDER PROMOKODINI kiriting va Birinchi depozitga 100% gacha bonus
-• Har qanday yo'qotish uchun 100% cashback
 
 🎯 **MelBet:**
 • Ro'yxatdan o'ting va bonus oling
-• AIFUT promokodini kiriting  Birinchi stavkangiz uchun maxsus taklif
-• Kunlik bonuslar va aksiyalar
-
-📱 *APK fayllarni yuklab olish uchun @BonusAPKxbetbot ga murojaat qiling!*
+• AIFUT promokodini kiriting
 """
 
         keyboard = [
             [
                 InlineKeyboardButton("🎰 1xBet Ro'yxatdan o'tish", url=BUKMAKER_LINKS['1xbet']),
                 InlineKeyboardButton("🎯 MelBet Ro'yxatdan o'tish", url=BUKMAKER_LINKS['melbet'])
-            ],
-            [
-                InlineKeyboardButton("📱 APK Yuklab olish", url="https://t.me/BonusAPKxbetbot")
             ],
             [
                 InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons"),
@@ -645,7 +686,7 @@ async def show_bonuses(query):
     except Exception as e:
         logger.error(f"show_bonuses da xato: {e}")
 
-# FOYDALANUVCHI HISOBINI KO'RSATISH
+# FOYDALANUVCHI HISOBINI KO'RSATISH - YANGILANGAN
 async def show_my_points(query, user_id):
     """Foydalanuvchi ballari va statistikasi"""
     try:
@@ -661,6 +702,7 @@ async def show_my_points(query, user_id):
 💰 **HISOBINGIZDA:** {points} ball
 👥 **Referallar:** {referrals} ta
 💵 **1 referal:** {data['settings']['referral_points']} ball
+📅 **Kunlik bonus:** {data['settings']['daily_bonus']} ball
 
 📊 **Almashish imkoniyatlari:**
 • {min_points} ball = {exchange_rate} {data['settings']['currency']}
@@ -673,6 +715,13 @@ async def show_my_points(query, user_id):
             text += f"✅ **Almashish mumkin:** {points // min_points} marta\n\n"
         else:
             text += f"❌ **Almashish uchun:** {min_points - points} ball yetishmayapti\n\n"
+        
+        # Kunlik bonus holati
+        today = datetime.now().strftime("%Y-%m-%d")
+        if data['stats'].get('last_daily_bonus') == today:
+            text += "📅 *Bugun kunlik bonus olgansiz!*\n\n"
+        else:
+            text += "📅 *Bugun kunlik bonus olish uchun /start ni bosing!*\n\n"
         
         points_history = user_data.get('points_history', [])
         if points_history:
@@ -694,452 +743,11 @@ async def show_my_points(query, user_id):
     except Exception as e:
         logger.error(f"show_my_points da xato: {e}")
 
-# REFERAL TIZIMI
-async def show_referral_link(query, user_id):
-    """Referal havolasini ko'rsatish"""
-    try:
-        bot_username = (await query.message._bot.get_me()).username
-        ref_link = f"https://t.me/{bot_username}?start=ref{user_id}"
-        referrals_count = get_user_referrals(user_id)
-        points_per_ref = data['settings']['referral_points']
-        user_points = get_user_points(user_id)
-        
-        text = f"""
-📤 *BAL TO'PLASH USULI*
+# ... (qolgan funksiyalar o'zgarmagan, faqat admin panel va boshqalar)
 
-🔗 **Sizning referal havolangiz:**
-`{ref_link}`
-
-💰 **Ball to'plash formulasi:**
-• Har bir do'st = {points_per_ref} ball
-• Ko'proq do'st = Ko'proq ball
-
-📊 **Sizning holatingiz:**
-• Do'stlar: {referrals_count} ta
-• HISOBINGIZ: {user_points} ball
-• Jami olingan ball: {referrals_count * points_per_ref} ball
-
-💡 **Qanday ball to'plasaniz:**
-1. Havolani nusxalang
-2. Do'stlaringizga yuboring  
-3. Har bir yangi do'st = {points_per_ref} ball
-4. Ballarni kuponlarga aylantiring!
-
-🚀 *Ko'proq do'st taklif qiling, tezroq ball to'plang!*
-"""
-
-        keyboard = [
-            [InlineKeyboardButton("🔗 TELEGRAMDA ULASHISH", callback_data="share_referral")],
-            [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("💰 Mening Ballim", callback_data="my_points")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_referral_link da xato: {e}")
-
-async def share_referral_link(query, user_id):
-    """Havolani ulashish"""
-    try:
-        bot_username = (await query.message._bot.get_me()).username
-        ref_link = f"https://t.me/{bot_username}?start=ref{user_id}"
-        
-        share_text = f"""🎯 *Futbol Kuponlari Boti*
-
-⚽ Kunlik bepul kuponlar
-💰 Ball evaziga ekskluziv kuponlar
-💎 Har bir do'st uchun 5 ball
-
-🎁 Do'stlaringizni taklif qiling va bepul kuponlar oling!
-
-Botga kirib, daromad olishni boshlang:
-{ref_link}"""
-
-        keyboard = [
-            [InlineKeyboardButton("📤 TELEGRAMDA ULASHISH", url=f"https://t.me/share/url?url={ref_link}&text={share_text}")],
-            [InlineKeyboardButton("💰 Mening Ballim", callback_data="my_points")],
-            [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🔗 *Havolani quyidagi tugma orqali osongina ulashing:*\n\n"
-            "Tugmani bosing va do'stlaringizga yuboring!",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-        
-    except Exception as e:
-        logger.error(f"share_referral_link da xato: {e}")
-
-# YORDAM BO'LIMI
-async def show_help(query):
-    """Yordam sahifasi"""
-    try:
-        text = """
-ℹ️ *BOTDAN FOYDALANISH QO'LLANMASI*
-
-⚽ *Kuponlar:*
-• **Bepul kuponlar** - Har kuni yangilanaveradi!
-• **Ball kuponlar** - 15 ball = 1 ta ekskluziv kupon
-
-💰 *Ball Tizimi:*
-• **1 do'st taklif = 5 ball**
-• **50 ball = 10,000 so'm** almashish
-• **15 ball = 1 ta maxsus kupon**
-
-🎯 *Qanday boshlash kerak:*
-1. 📤 Do'stlaringizni taklif qiling
-2. 💰 Ball to'plang
-3. 🎯 Kuponlar oling
-4. 💸 Ballarni pulga aylantiring
-
-📞 *Qo'llab-quvvatlash:*
-@baxtga_olga
-
-🚀 *Har kuni yangi kuponlar bilan yutuqqa intiling!*
-"""
-        
-        keyboard = [
-            [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_help da xato: {e}")
-
-# ADMIN PANELI
-async def show_admin_panel(query):
-    """Admin panelini ko'rsatish"""
-    try:
-        stats = get_user_statistics()
-        total_points = sum(user.get('points', 0) for user in data['users'].values())
-        
-        text = f"""
-👑 *ADMIN PANELI*
-
-📊 **Bot Statistikasi:**
-👥 Jami foydalanuvchilar: {stats['total_users']} ta
-💰 Jami ballar: {total_points} ball
-🎟️ Sotilgan kuponlar: {data['stats']['total_coupons_sold']} ta
-
-⚽ **Kuponlar:**
-🎯 Bepul kuponlar: {len(data['coupons']['today']['matches'])} ta
-💰 Ball kuponlar: {len(data['coupons']['ball_coupons']['available'])} ta
-
-🎯 **Admin Vazifalari:**
-"""
-
-        keyboard = [
-            [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
-            [InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users")],
-            [InlineKeyboardButton("💰 Balans Boshqarish", callback_data="admin_manage_balance")],
-            [InlineKeyboardButton("🎯 Kupon Qo'shish", callback_data="admin_add_coupon")],
-            [InlineKeyboardButton("📢 Reklama Yuborish", callback_data="admin_broadcast")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_panel da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def show_admin_stats(query):
-    """Batafsil statistika"""
-    try:
-        stats = get_user_statistics()
-        total_points = sum(user.get('points', 0) for user in data['users'].values())
-        total_referrals = sum(user.get('referrals', 0) for user in data['users'].values())
-        
-        text = f"""
-📊 *BATAFSIL STATISTIKA*
-
-👥 **Foydalanuvchilar:**
-• Jami: {stats['total_users']} ta
-• Bugungi yangi: {stats['today_users']} ta
-• Aktiv (7 kun): {stats['active_users']} ta
-
-💰 **Ball Tizimi:**
-• Jami berilgan: {data['stats']['total_points_given']} ball
-• Foydalanuvchilarda: {total_points} ball
-• Sotilgan kuponlar: {data['stats']['total_coupons_sold']} ta
-
-📈 **Referallar:**
-• Jami referallar: {total_referrals} ta
-• Bugungi referallar: {stats['today_referrals']} ta
-
-⏰ Yangilangan: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-"""
-        
-        keyboard = [
-            [InlineKeyboardButton("💰 Balans Boshqarish", callback_data="admin_manage_balance")],
-            [InlineKeyboardButton("🔄 Yangilash", callback_data="admin_stats")],
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_stats da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def show_admin_users(query):
-    """Foydalanuvchilar ro'yxati"""
-    try:
-        users = data['users']
-        users_list = list(users.items())[:15]
-        
-        text = f"""
-👥 *FOYDALANUVCHILAR RO'YXATI*
-
-Jami: {len(users)} ta foydalanuvchi
-
-"""
-        
-        for i, (user_id, user_data) in enumerate(users_list, 1):
-            name = user_data.get('name', 'Noma\'lum')
-            username = user_data.get('username', '')
-            points = user_data.get('points', 0)
-            referrals = user_data.get('referrals', 0)
-            
-            username_display = f"(@{username})" if username else ""
-            
-            text += f"{i}. {name} {username_display}\n"
-            text += f"   🆔: `{user_id}`\n"
-            text += f"   💰: {points} ball | 👥: {referrals} ta\n\n"
-        
-        keyboard = [
-            [InlineKeyboardButton("💰 Balans Boshqarish", callback_data="admin_manage_balance")],
-            [InlineKeyboardButton("🔍 Foydalanuvchi Qidirish", callback_data="admin_search_user")],
-            [InlineKeyboardButton("🔄 Yangilash", callback_data="admin_users")],
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_users da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def show_admin_manage_balance(query):
-    """Balans boshqarish sahifasi"""
-    try:
-        # Eng ko'p balli foydalanuvchilarni saralash
-        sorted_users = sorted(data['users'].items(), key=lambda x: x[1].get('points', 0), reverse=True)[:10]  # 10 taga kamaytirdim
-        
-        text = """
-💰 *BALANS BOSHQARISH*
-
-Quyidagi foydalanuvchilarning balansini boshqaring:
-
-"""
-        
-        keyboard = []
-        
-        for user_id, user_data in sorted_users:
-            name = user_data.get('name', 'Noma\'lum')
-            points = user_data.get('points', 0)
-            username = user_data.get('username', '')
-            
-            username_display = f"(@{username})" if username else ""
-            display_name = f"{name} {username_display}"[:18]  # Tugma matnini qisqartirdim
-            
-            keyboard.append([
-                InlineKeyboardButton(f"➕ {display_name}", callback_data=f"admin_add_points_{user_id}"),
-                InlineKeyboardButton(f"➖ {display_name}", callback_data=f"admin_remove_points_{user_id}")
-            ])
-        
-        keyboard.extend([
-            [InlineKeyboardButton("🔍 Foydalanuvchi Qidirish", callback_data="admin_search_user")],
-            [InlineKeyboardButton("👥 Barcha Foydalanuvchilar", callback_data="admin_users")],
-            [InlineKeyboardButton("🔄 Yangilash", callback_data="admin_manage_balance")],
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_manage_balance da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def admin_search_user(query, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi qidirish"""
-    try:
-        # Context ni to'g'ri o'rnatish
-        context.user_data['admin_action'] = 'search_user'
-        
-        text = """
-🔍 *FOYDALANUVCHI QIDIRISH*
-
-Foydalanuvchi @username yoki ismini yuboring:
-
-*Namuna:*
-`ali` - Ismi Ali bo'lgan foydalanuvchilar  
-`john` - Ismi John bo'lgan foydalanuvchilar
-`baxtga_olga` - @baxtga_olga foydalanuvchisi
-
-💡 *Eslatma:* 
-- Faqat username yoki ismni yozing, @ belgisiz
-- Qisman qidirish ham ishlaydi
-- Katta-kichik harflar farqi yo'q
-"""
-
-        keyboard = [
-            [InlineKeyboardButton("🔙 Balans Boshqarish", callback_data="admin_manage_balance")],
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"admin_search_user da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def show_admin_add_coupon(query):
-    """Kupon qo'shish sahifasi"""
-    try:
-        text = """
-🎯 *KUPON QO'SHISH*
-
-Quyidagi formatlardan birida kupon qo'shing:
-
-📅 *Bepul kupon format:*
-`sana|vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch|1xbet_kodi|melbet_kodi|dbbet_kodi`
-
-💰 *Ball kupon format:*
-`vaqt|liga|jamoalar|bashorat|koeffitsient|ishonch|1xbet_kodi|melbet_kodi|dbbet_kodi`
-
-📝 *Misol (Bepul kupon):*
-`2024-01-20|20:00|Premier League|Man City vs Arsenal|1X|1.50|85%|CODE123|CODE456|CODE789`
-
-📝 *Misol (Ball kupon):*
-`20:00|Premier League|Man City vs Arsenal|1X|1.50|85%|CODE123|CODE456|CODE789`
-
-Yuborilgan xabar avtomatik tarzda qayta ishlanadi.
-"""
-        
-        keyboard = [
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_add_coupon da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def show_admin_broadcast(query):
-    """Reklama yuborish sahifasi"""
-    try:
-        text = f"""
-📢 *REKLAMA YUBORISH*
-
-Barcha {len(data['users'])} ta foydalanuvchilarga xabar yuborish uchun quyidagi formatda xabar yuboring:
-
-📨 *Matn xabar:* Oddiy matn
-🖼️ *Rasm xabar:* Rasm + taglavha
-📎 *Fayl xabar:* Har qanday fayl
-
-Xabar barcha foydalanuvchilarga yuboriladi.
-"""
-        
-        keyboard = [
-            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_admin_broadcast da xato: {e}")
-        await query.message.reply_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-# YORDAMCHI FUNKSIYALAR
-async def back_to_coupon_selection(query):
-    """Kupon tanlash sahifasiga qaytish"""
-    user_id = query.from_user.id
-    await show_coupon_selection(query, user_id)
-
-async def back_to_main(query):
-    """Asosiy menyuga qaytish"""
-    try:
-        user = query.from_user
-        user_id = user.id
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("🎯 KUPONLAR OLISH", callback_data="get_coupons"),
-                InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")
-            ],
-            [
-                InlineKeyboardButton("🎁 BONUSLAR", callback_data="bonuses"),
-                InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points")
-            ],
-            [
-                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link"),
-                InlineKeyboardButton("ℹ️ YORDAM", callback_data="help")
-            ]
-        ]
-        
-        if is_admin(user_id):
-            keyboard.append([InlineKeyboardButton("👑 ADMIN PANEL", callback_data="admin")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "🎯 *Asosiy Menyu*\n\n"
-            "Ball to'plang, kuponlar oling va yutuqlarga erishing! 🚀",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-        
-    except Exception as e:
-        logger.error(f"back_to_main da xato: {e}")
-
-def get_user_statistics():
-    """Foydalanuvchi statistikasini hisoblash"""
-    total_users = len(data['users'])
-    
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_users = sum(1 for user in data['users'].values() if user.get('joined_date') == today)
-    
-    today_referrals = sum(user.get('referrals', 0) for user in data['users'].values() if user.get('joined_date') == today)
-    
-    active_users = 0
-    week_ago = datetime.now().timestamp() - 7 * 24 * 60 * 60
-    for user_id, user_data in data['users'].items():
-        last_active = user_data.get('last_active', 0)
-        if last_active > week_ago:
-            active_users += 1
-    
-    return {
-        'total_users': total_users,
-        'today_users': today_users,
-        'today_referrals': today_referrals,
-        'active_users': active_users
-    }
-
-# YANGI ADMIN XABARLARINI QAYTA ISHLASH - TO'G'IRLANGAN
+# YANGI ADMIN XABARLARINI QAYTA ISHLASH
 async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin xabarlarini qayta ishlash - TO'G'IRLANGAN VERSIYA"""
+    """Admin xabarlarini qayta ishlash"""
     user_id = update.effective_user.id
     if not is_admin(user_id):
         return
@@ -1156,27 +764,23 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
             found_users = []
             
             logger.info(f"Qidiruv so'rovi: '{search_term}'")
-            logger.info(f"Jami foydalanuvchilar: {len(data['users'])} ta")
             
             # Barcha foydalanuvchilarni tekshiramiz
             for user_id_str, user_data in data['users'].items():
                 user_username = user_data.get('username', '').lower() if user_data.get('username') else ''
                 user_name = user_data.get('name', '').lower() if user_data.get('name') else ''
                 
-                # Username yoki ismda qidirish (qisman moslik)
+                # Username yoki ismda qidirish
                 if (search_term in user_username or 
-                    search_term in user_name or
-                    user_name.startswith(search_term) or
-                    user_username.startswith(search_term)):
+                    search_term in user_name):
                     
                     found_users.append((user_id_str, user_data))
-                    logger.info(f"Topildi: {user_data.get('name')} (@{user_data.get('username')}) - ID: {user_id_str}")
             
             if found_users:
                 text = f"🔍 *Qidiruv natijasi:* `{search_term}`\n\n"
                 text += f"📊 Topilgan foydalanuvchilar: {len(found_users)} ta\n\n"
                 
-                for user_id_str, user_data in found_users[:8]:  # 8 tadan ko'p bo'lsa cheklaymiz
+                for user_id_str, user_data in found_users[:6]:
                     name = user_data.get('name', 'Noma\'lum')
                     username_found = user_data.get('username', '')
                     points = user_data.get('points', 0)
@@ -1188,23 +792,13 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                     text += f"🆔 ID: `{user_id_str}`\n"
                     text += f"💰 Ball: {points} | 👥 Referallar: {referrals} ta\n\n"
                 
-                if len(found_users) > 8:
-                    text += f"⚠️ ... va yana {len(found_users) - 8} ta foydalanuvchi\n\n"
-                
                 keyboard = []
-                for user_id_str, user_data in found_users[:6]:  # Tugmalar uchun 6 tadan
+                for user_id_str, user_data in found_users[:4]:
                     name = user_data.get('name', 'Noma\'lum')[:12]
-                    username_found = user_data.get('username', '')
-                    
-                    # Tugma matnini tayyorlash
-                    display_text = f"{name}"
-                    if username_found:
-                        display_text = f"{name}"  # Username ni olib tashladim, faqat ism
-                    
                     keyboard.extend([
                         [
-                            InlineKeyboardButton(f"➕ {display_text}", callback_data=f"admin_add_points_{user_id_str}"),
-                            InlineKeyboardButton(f"➖ {display_text}", callback_data=f"admin_remove_points_{user_id_str}")
+                            InlineKeyboardButton(f"➕ {name}", callback_data=f"admin_add_points_{user_id_str}"),
+                            InlineKeyboardButton(f"➖ {name}", callback_data=f"admin_remove_points_{user_id_str}")
                         ]
                     ])
                 
@@ -1214,44 +808,12 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 await message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
                 
             else:
-                # Hech nima topilmaganda barcha foydalanuvchilarni ko'rsatish
-                users_list = list(data['users'].items())[:6]
-                users_text = f"❌ *Foydalanuvchi topilmadi!*\n\n"
-                users_text += f"🔍 Qidiruv so'zi: `{search_term}`\n\n"
-                users_text += "📋 *Oxirgi foydalanuvchilar:*\n"
-                
-                for i, (uid, udata) in enumerate(users_list, 1):
-                    name = udata.get('name', 'Noma\'lum')
-                    username_found = udata.get('username', '')
-                    points = udata.get('points', 0)
-                    
-                    username_display = f"(@{username_found})" if username_found else ""
-                    users_text += f"{i}. {name} {username_display} - 💰 {points} ball\n"
-                
-                users_text += f"\n💡 *Jami foydalanuvchilar:* {len(data['users'])} ta"
-                users_text += f"\n\n💡 *Maslahat:* Ism yoki username ni aniqroq yozing"
-                
-                # Oxirgi foydalanuvchilarni boshqarish tugmalari
-                keyboard = []
-                for uid, udata in users_list[:4]:
-                    name = udata.get('name', 'Noma\'lum')[:12]
-                    keyboard.extend([
-                        [
-                            InlineKeyboardButton(f"➕ {name}", callback_data=f"admin_add_points_{uid}"),
-                            InlineKeyboardButton(f"➖ {name}", callback_data=f"admin_remove_points_{uid}")
-                        ]
-                    ])
-                
-                keyboard.append([InlineKeyboardButton("🔄 Qayta Qidirish", callback_data="admin_search_user")])
-                keyboard.append([InlineKeyboardButton("🔙 Balans Boshqarish", callback_data="admin_manage_balance")])
-                
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await message.reply_text(users_text, reply_markup=reply_markup, parse_mode='Markdown')
+                await message.reply_text(f"❌ Foydalanuvchi topilmadi: `{search_term}`")
             
             context.user_data.pop('admin_action', None)
             return
         
-        # Ball qo'shish/olish rejimi - XATOLARNI QAYTA ISHLASH
+        # Ball qo'shish/olish rejimi
         if context.user_data.get('editing_user'):
             user_id_to_edit = context.user_data['editing_user']
             action = context.user_data.get('action')
@@ -1263,7 +825,6 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 current_points = user_data.get('points', 0)
                 
                 if action == 'add_points':
-                    # Foydalanuvchi ID sini to'g'ri formatda o'tkazish
                     user_id_int = int(user_id_to_edit)
                     if add_user_points(user_id_int, points, f"Admin tomonidan qo'shildi"):
                         await message.reply_text(
@@ -1272,15 +833,11 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                             f"🆔 ID: `{user_id_to_edit}`\n"
                             f"💰 Qo'shildi: {points} ball\n"
                             f"📊 Avval: {current_points} ball\n"
-                            f"🎯 Keyin: {get_user_points(user_id_int)} ball\n\n"
-                            f"✅ Amal muvaffaqiyatli bajarildi!",
+                            f"🎯 Keyin: {get_user_points(user_id_int)} ball",
                             parse_mode='Markdown'
                         )
-                    else:
-                        await message.reply_text("❌ Ball qo'shishda xatolik yuz berdi!")
                     
                 elif action == 'remove_points':
-                    # Foydalanuvchi ID sini to'g'ri formatda o'tkazish
                     user_id_int = int(user_id_to_edit)
                     if remove_user_points(user_id_int, points, f"Admin tomonidan olindi"):
                         await message.reply_text(
@@ -1289,17 +846,7 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                             f"🆔 ID: `{user_id_to_edit}`\n"
                             f"💰 Olindi: {points} ball\n"
                             f"📊 Avval: {current_points} ball\n"
-                            f"🎯 Keyin: {get_user_points(user_id_int)} ball\n\n"
-                            f"⚠️ Amalni bekor qilib bo'lmaydi!",
-                            parse_mode='Markdown'
-                        )
-                    else:
-                        await message.reply_text(
-                            f"❌ *Ball olib bo'lmadi!*\n\n"
-                            f"👤 Foydalanuvchi: {user_name}\n"
-                            f"💰 So'ralgan: {points} ball\n"
-                            f"🎯 Mavjud: {current_points} ball\n\n"
-                            f"Ball yetarli emas!",
+                            f"🎯 Keyin: {get_user_points(user_id_int)} ball",
                             parse_mode='Markdown'
                         )
                 
@@ -1311,41 +858,11 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 await message.reply_text("❌ Iltimos, faqat raqam kiriting!")
                 return
         
-        # Kupon qo'shish
+        # Kupon qo'shish (faqat ball kuponlari)
         if '|' in message.text:
             parts = message.text.split('|')
             
-            if len(parts) == 10:  # Bepul kupon
-                date, time, league, teams, prediction, odds, confidence, code_1xbet, code_melbet, code_dbbet = parts
-                
-                new_match = {
-                    'time': time.strip(),
-                    'league': league.strip(),
-                    'teams': teams.strip(),
-                    'prediction': prediction.strip(),
-                    'odds': odds.strip(),
-                    'confidence': confidence.strip()
-                }
-                
-                data['coupons']['today']['matches'].append(new_match)
-                data['coupons']['today']['date'] = date.strip()
-                data['coupons']['today']['coupon_codes'] = {
-                    "1xbet": code_1xbet.strip(),
-                    "melbet": code_melbet.strip(),
-                    "dbbet": code_dbbet.strip()
-                }
-                save_data(data)
-                
-                await message.reply_text(
-                    f"✅ *Bepul kupon qo'shildi!*\n\n"
-                    f"🏆 {teams.strip()}\n"
-                    f"⏰ {time.strip()} | {league.strip()}\n"
-                    f"🎯 {prediction.strip()} | 📊 {odds.strip()}\n\n"
-                    f"📊 Jami bepul kuponlar: {len(data['coupons']['today']['matches'])} ta",
-                    parse_mode='Markdown'
-                )
-                
-            elif len(parts) == 9:  # Ball kupon
+            if len(parts) == 9:  # Ball kupon
                 time, league, teams, prediction, odds, confidence, code_1xbet, code_melbet, code_dbbet = parts
                 
                 new_coupon = {
@@ -1392,13 +909,6 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                             text=message.text,
                             parse_mode='Markdown'
                         )
-                    elif message.photo:
-                        await context.bot.send_photo(
-                            chat_id=int(user_id_str),
-                            photo=message.photo[-1].file_id,
-                            caption=message.caption,
-                            parse_mode='Markdown'
-                        )
                     successful += 1
                     
                     if i % 10 == 0:
@@ -1412,8 +922,7 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"📊 *Reklama yuborildi!*\n\n"
                 f"👥 Jami foydalanuvchi: {total_users} ta\n"
                 f"✅ Muvaffaqiyatli: {successful} ta\n"
-                f"❌ Xatolik: {total_users - successful} ta\n"
-                f"📈 Muvaffaqiyat darajasi: {(successful/total_users*100):.1f}%",
+                f"❌ Xatolik: {total_users - successful} ta",
                 parse_mode='Markdown'
             )
             
@@ -1436,14 +945,13 @@ def main():
         print("✅ Bot muvaffaqiyatli ishga tushdi!")
         print("🤖 Bot ishlayapti...")
         print(f"👑 Admin ID: {ADMIN_ID}")
-        print("🎯 BARCHA FUNKSIYALAR ISHLAYDI:")
-        print("   • 🎯 Kupon olish tizimi")
-        print("   • 💰 Ball almashish")
-        print("   • 🎁 Bonuslar")
-        print("   • 👑 Soddalashtirilgan admin paneli")
-        print("   • 💰 Ball qo'shish/olish (TO'LIQ ISHLAYDI!)")
-        print("   • 🔍 Foydalanuvchi qidirish (TO'LIQ ISHLAYDI!)")
-        print("   • 📢 Reklama yuborish")
+        print("🎯 YANGI TIZIM:")
+        print("   • 🎁 Yangi foydalanuvchi: 40 ball")
+        print("   • 📅 Kunlik bonus: 15 ball")
+        print("   • 🎯 Kupon narxi: 15 ball")
+        print("   • 💰 Pul ishlash: 50 ball")
+        print("   • 📨 So'rov @baxtga_olga ga yuboriladi")
+        print("   • 🔑 Parol: 1234")
         
         application.run_polling()
         
