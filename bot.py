@@ -459,7 +459,7 @@ async def get_ball_coupon(query, user_id):
         logger.error(f"get_ball_coupon da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# PUL ISHLASH TIZIMI
+# PUL ISHLASH TIZIMI - TO'G'IRLANGAN
 async def show_exchange_points(query, user_id):
     """Ball almashish sahifasi"""
     try:
@@ -576,12 +576,12 @@ async def exchange_points_handler(query, user_id):
 • Sana: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 📝 *Foydalanuvchi xabari:*
-"Salom men {user_name} (foydalanuvchi ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
+"Salom men {user_name} (foydalanuvchi ID: {user_id}) {min_points} ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
 """
             
             try:
                 # Admin ga xabar yuborish
-                await query.message._bot.send_message(
+                await context.bot.send_message(
                     chat_id=ADMIN_ID,
                     text=user_message,
                     parse_mode='Markdown'
@@ -600,7 +600,7 @@ async def exchange_points_handler(query, user_id):
 ⏰ *Tez orada siz bilan bog'lanishadi*
 
 📝 *Yuborilgan xabar:*
-"Salom men {user_name} (foydalanuvchi ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
+"Salom men {user_name} (foydalanuvchi ID: {user_id}) {min_points} ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
 
 💡 *Eslatma:* Admin siz bilan tez orada bog'lanadi va to'lov tafsilotlarini beradi.
 """
