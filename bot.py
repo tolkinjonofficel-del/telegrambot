@@ -303,6 +303,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await get_ball_coupon(query, user_id)
         elif query.data == "exchange_points":
             await show_exchange_points(query, user_id)
+        elif query.data == "confirm_exchange":
+            await confirm_exchange_handler(query, user_id)
         elif query.data == "process_exchange":
             await exchange_points_handler(query, user_id)
         elif query.data == "bonuses":
@@ -457,7 +459,7 @@ async def get_ball_coupon(query, user_id):
         logger.error(f"get_ball_coupon da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# PUL ISHLASH TIZIMI - TO'G'IRLANGAN
+# PUL ISHLASH TIZIMI
 async def show_exchange_points(query, user_id):
     """Ball almashish sahifasi"""
     try:
@@ -578,13 +580,7 @@ async def exchange_points_handler(query, user_id):
 """
             
             try:
-                # Forward qilish uchun foydalanuvchi xabarini yuborish
-                user_msg = await query.message.reply_text(
-                    f"📨 *So'rovingiz adminga yuborilmoqda...*",
-                    parse_mode='Markdown'
-                )
-                
-                # Admin ga forward qilish
+                # Admin ga xabar yuborish
                 await query.message._bot.send_message(
                     chat_id=ADMIN_ID,
                     text=user_message,
@@ -640,6 +636,7 @@ async def exchange_points_handler(query, user_id):
             "Agar muammo takrorlansa, @baxtga_olga ga murojaat qiling.",
             parse_mode='Markdown'
         )
+
 # BONUSLAR BO'LIMI
 async def show_bonuses(query):
     """Bonuslar sahifasi"""
