@@ -457,7 +457,7 @@ async def get_ball_coupon(query, user_id):
         logger.error(f"get_ball_coupon da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# PUL ISHLASH TIZIMI
+# PUL ISHLASH TIZIMI - TO'G'IRLANGAN
 async def show_exchange_points(query, user_id):
     """Ball almashish sahifasi"""
     try:
@@ -478,7 +478,7 @@ async def show_exchange_points(query, user_id):
         keyboard = []
         
         if user_points >= min_points:
-            keyboard.append([InlineKeyboardButton(f"💰 {min_points} BALLNI PULGA AYLANTIRISH", callback_data="process_exchange")])
+            keyboard.append([InlineKeyboardButton(f"💰 {min_points} BALLNI PULGA AYLANTIRISH", callback_data="confirm_exchange")])
         else:
             text += f"\n❌ *Ball yetarli emas!* {min_points - user_points} ball yetishmayapti."
             keyboard.append([InlineKeyboardButton("📤 Bal To'plash", callback_data="get_referral_link")])
@@ -496,17 +496,58 @@ async def show_exchange_points(query, user_id):
         logger.error(f"show_exchange_points da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
+async def confirm_exchange_handler(query, user_id):
+    """Pul ishlashni tasdiqlash sahifasi"""
+    try:
+        user_points = get_user_points(user_id)
+        min_points = data['settings']['min_exchange_points']
+        exchange_rate = data['settings']['exchange_rate']
+        
+        text = f"""
+⚠️ *PUL ISHLASHNI TASDIQLASH*
+
+💰 **Sizning joriy ballaringiz:** {user_points} ball
+💵 **Ayiriladigan ball:** {min_points} ball
+🎯 **Qoladigan ball:** {user_points - min_points} ball
+💰 **Olasiz:** {exchange_rate:,} {data['settings']['currency']}
+
+❓ *Ballarni pulga aylantirishni tasdiqlaysizmi?*
+
+⚠️ *Eslatma:* Tasdiqlaganingizdan so'ng:
+• {min_points} ball hisobingizdan oladi
+• So'rov @baxtga_olga ga yuboriladi
+• Tez orada siz bilan bog'lanishadi
+"""
+
+        keyboard = [
+            [InlineKeyboardButton("✅ HA, TASDIQLAYMAN", callback_data="process_exchange")],
+            [InlineKeyboardButton("❌ BEKOR QILISH", callback_data="exchange_points")],
+            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"confirm_exchange_handler da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
 async def exchange_points_handler(query, user_id):
     """Pul ishlash tugmasi bosilganda"""
     try:
         user_points = get_user_points(user_id)
         min_points = data['settings']['min_exchange_points']
+        exchange_rate = data['settings']['exchange_rate']
         
         if user_points < min_points:
             await query.edit_message_text(
                 f"❌ Ballaringiz yetarli emas!\n"
                 f"💰 Sizda: {user_points} ball\n"
-                f"💵 Minimal talab: {min_points} ball",
+                f"💵 Minimal talab: {min_points} ball\n\n"
+                f"📤 Ball to'plash uchun:\n"
+                f"• Kunlik bonuslardan foydalaning\n"
+                f"• Referal havolangizni tarqating\n"
+                f"• Do'stlaringizni taklif qiling",
                 parse_mode='Markdown'
             )
             return
@@ -518,40 +559,58 @@ async def exchange_points_handler(query, user_id):
             user_name = user_data.get('name', 'Noma\'lum')
             user_username = user_data.get('username', '')
             
-            admin_message = f"""
+            # Foydalanuvchi xabarini yaratish
+            user_message = f"""
 💸 *YANGI PUL ALMASHISH SO'ROVI*
 
-👤 *Foydalanuvchi:*
-Ism: {user_name}
-Username: @{user_username if user_username else 'mavjud emas'}
-ID: `{user_id}`
+👤 *Foydalanuvchi ma'lumotlari:*
+• Ism: {user_name}
+• Username: @{user_username if user_username else 'mavjud emas'}
+• ID: `{user_id}`
 
 💰 *So'rov tafsilotlari:*
-Ball: {min_points} ball
-To'lov: {data['settings']['exchange_rate']:,} so'm
+• Ball miqdori: {min_points} ball
+• Pul miqdori: {exchange_rate:,} so'm
+• Sana: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
-📝 *Xabar:*
-"Salom men {user_name} (ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {data['settings']['exchange_rate']:,} so'm qilib olmoqchiman"
-
-⏰ Vaqt: {datetime.now().strftime("%Y-%m-%d %H:%M")}
+📝 *Foydalanuvchi xabari:*
+"Salom men {user_name} (foydalanuvchi ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
 """
             
             try:
+                # Forward qilish uchun foydalanuvchi xabarini yuborish
+                user_msg = await query.message.reply_text(
+                    f"📨 *So'rovingiz adminga yuborilmoqda...*",
+                    parse_mode='Markdown'
+                )
+                
+                # Admin ga forward qilish
                 await query.message._bot.send_message(
                     chat_id=ADMIN_ID,
-                    text=admin_message,
+                    text=user_message,
                     parse_mode='Markdown'
                 )
                 
                 # Foydalanuvchiga tasdiqlash xabari
+                success_text = f"""
+✅ *So'rovingiz muvaffaqiyatli yuborildi!*
+
+💰 *Amalga oshirildi:*
+• Hisobingizdan: {min_points} ball olindi
+• Qolgan ball: {get_user_points(user_id)} ball
+• So'ralgan summa: {exchange_rate:,} so'm
+
+📨 *So'rovingiz @baxtga_olga ga yuborildi*
+⏰ *Tez orada siz bilan bog'lanishadi*
+
+📝 *Yuborilgan xabar:*
+"Salom men {user_name} (foydalanuvchi ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
+
+💡 *Eslatma:* Admin siz bilan tez orada bog'lanadi va to'lov tafsilotlarini beradi.
+"""
+                
                 await query.edit_message_text(
-                    f"✅ *So'rovingiz qabul qilindi!*\n\n"
-                    f"💰 *Sizning {min_points} ballingiz hisobingizdan olindi*\n"
-                    f"🎯 *Qolgan ball:* {get_user_points(user_id)} ball\n\n"
-                    f"📨 *So'rovingiz @baxtga_olga ga yuborildi*\n"
-                    f"⏰ *Tez orada siz bilan bog'lanishadi*\n\n"
-                    f"💡 *Xabar matni:*\n"
-                    f"\"Salom men {user_name} (ID: {user_id}) 50 ballni hozirgi kurs bo'yicha 1xbet hisobimga {data['settings']['exchange_rate']:,} so'm qilib olmoqchiman\"",
+                    success_text,
                     parse_mode='Markdown'
                 )
                 
@@ -562,14 +621,25 @@ To'lov: {data['settings']['exchange_rate']:,} so'm
                 logger.error(f"Adminga xabar yuborishda xato: {e}")
                 # Xato bo'lsa, ballarni qaytarish
                 add_user_points(user_id, min_points, "Xato tufayli qaytarildi")
-                await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.")
+                await query.edit_message_text(
+                    "❌ Xatolik yuz berdi. So'rov adminga yuborilmadi.\n\n"
+                    "Iltimos, keyinroq qayta urinib ko'ring yoki @baxtga_olga ga to'g'ridan-to'g'ri murojaat qiling.",
+                    parse_mode='Markdown'
+                )
         else:
-            await query.edit_message_text("❌ Ballarni olib tashlashda xatolik yuz berdi!")
+            await query.edit_message_text(
+                "❌ Ballarni olib tashlashda xatolik yuz berdi!\n\n"
+                "Iltimos, qayta urinib ko'ring yoki @baxtga_olga ga murojaat qiling.",
+                parse_mode='Markdown'
+            )
             
     except Exception as e:
         logger.error(f"exchange_points_handler da xato: {e}")
-        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
+        await query.edit_message_text(
+            "❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.\n\n"
+            "Agar muammo takrorlansa, @baxtga_olga ga murojaat qiling.",
+            parse_mode='Markdown'
+        )
 # BONUSLAR BO'LIMI
 async def show_bonuses(query):
     """Bonuslar sahifasi"""
