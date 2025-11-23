@@ -259,9 +259,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points"),
                 InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link")
-            ],
-            [
-                InlineKeyboardButton("ℹ️ YORDAM", callback_data="help")
             ]
         ]
         
@@ -307,8 +304,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_referral_link(query, user_id)
         elif query.data == "share_referral":
             await share_referral_link(query, user_id)
-        elif query.data == "help":
-            await show_help(query)
         elif query.data == "back":
             await back_to_main(query)
         
@@ -626,50 +621,6 @@ Botga kirib, daromad olishni boshlang:
         logger.error(f"share_referral_link da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# YORDAM BO'LIMI - TO'G'IRLANGAN
-async def show_help(query):
-    """Yordam sahifasi"""
-    try:
-        text = """
-ℹ️ *BOTDAN FOYDALANISH QO'LLANMASI*
-
-⚽ *Kuponlar:*
-• **Ball kuponlar** - 15 ball = 1 ta ekskluziv kupon
-• **Har bir kuponni faqat 1 marta sotib olish mumkin**
-• **Kuponlar admin tomonidan qo'shiladi**
-
-💰 *Ball Tizimi:*
-• **Yangi foydalanuvchi bonus** - 30 ball
-• **1 do'st taklif = 5 ball**
-• **Kunlik bonus** - 10 ball (har kuni /start bosish orqali)
-
-🎯 *Qanday boshlash kerak:*
-1. 📤 Do'stlaringizni taklif qiling
-2. 💰 Ball to'plang
-3. 🎯 Kuponlar oling
-4. ⚽ Futbol baholariga qo'llang
-
-📱 *Bukmeker Kontorlari:*
-• **1xBet** - Keng futbol turnirlari
-• **MelBet** - Yuqori koeffitsientlar  
-• **DB Bet** - Tezkor to'lovlar
-
-📞 *Qo'llab-quvvatlash:*
-Agar savollaringiz bo'lsa, @baxtga_olga ga murojaat qiling.
-"""
-
-        keyboard = [
-            [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_help da xato: {e}")
-        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
 # ASOSIY MENYUGA QAYTISH
 async def back_to_main(query):
     """Asosiy menyuga qaytish"""
@@ -695,9 +646,6 @@ Ball to'plang va kuponlar oling! 🚀
             [
                 InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points"),
                 InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link")
-            ],
-            [
-                InlineKeyboardButton("ℹ️ YORDAM", callback_data="help")
             ]
         ]
         
@@ -948,7 +896,7 @@ def main():
         print("   • 📤 Referal: 5 ball")
         print("   • 🎯 Kupon narxi: 15 ball")
         print("   • ❌ Pul ishlash funksiyasi O'CHIRILDI")
-        print("   • ✅ Yordam bo'limi to'g'rilandi")
+        print("   • ❌ Yordam tugmasi O'CHIRILDI")
         print("   • 🔄 Har bir kuponni hamma foydalanuvchi 1 marta sotib oladi")
         
         application.run_polling()
