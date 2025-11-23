@@ -306,7 +306,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif query.data == "confirm_exchange":
             await confirm_exchange_handler(query, user_id)
         elif query.data == "process_exchange":
-            await exchange_points_handler(query, user_id)
+            await exchange_points_handler(query, user_id, context)
         elif query.data == "bonuses":
             await show_bonuses(query)
         elif query.data == "my_points":
@@ -534,7 +534,7 @@ async def confirm_exchange_handler(query, user_id):
         logger.error(f"confirm_exchange_handler da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-async def exchange_points_handler(query, user_id):
+async def exchange_points_handler(query, user_id, context):
     """Pul ishlash tugmasi bosilganda"""
     try:
         user_points = get_user_points(user_id)
@@ -1009,7 +1009,7 @@ async def show_admin_broadcast(query):
         text = f"""
 📢 *REKLAMA YUBORISH*
 
-Barcha {len(data['users'])} ta foydalanuvchilarga xabar yuborish uchun oddiy matn yuboring.
+Barcha {len(data['users'])} ta foydalanuvchilaga xabar yuborish uchun oddiy matn yuboring.
 
 Xabar barcha foydalanuvchilarga yuboriladi.
 """
