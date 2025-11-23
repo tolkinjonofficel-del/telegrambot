@@ -239,7 +239,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • 🎁 *Yangi foydalanuvchi bonus:* 30 ball
 • 📤 1 do'st taklif = *5 ball*
 • 📅 *Kunlik bonus:* 10 ball
-• 💰 50 ball = *10,000 so'm*
 • 🎯 15 ball = *1 ta maxsus kupon*
 
 📊 *SIZNING HOLATINGIZ:*
@@ -250,19 +249,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_new_user:
             welcome_text += f"\n🎁 *Sizga yangi foydalanuvchi bonus sifatida 30 ball berildi!*"
 
-        welcome_text += f"\n\n🚀 *HOZIRROQ BOSHLANG!*\nBall to'plang, kuponlar oling va yutuqlarga erishing!"
+        welcome_text += f"\n\n🚀 *HOZIRROQ BOSHLANG!*\nBall to'plang va kuponlar oling! 🎯"
 
         keyboard = [
             [
                 InlineKeyboardButton("🎯 KUPONLAR OLISH", callback_data="get_coupons"),
-                InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")
+                InlineKeyboardButton("🎁 BONUSLAR", callback_data="bonuses")
             ],
             [
-                InlineKeyboardButton("🎁 BONUSLAR", callback_data="bonuses"),
-                InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points")
+                InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points"),
+                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link")
             ],
             [
-                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link"),
                 InlineKeyboardButton("ℹ️ YORDAM", callback_data="help")
             ]
         ]
@@ -301,12 +299,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_coupon_selection(query, user_id)
         elif query.data == "get_ball_coupon":
             await get_ball_coupon(query, user_id)
-        elif query.data == "exchange_points":
-            await show_exchange_points(query, user_id)
-        elif query.data == "confirm_exchange":
-            await confirm_exchange_handler(query, user_id)
-        elif query.data == "process_exchange":
-            await exchange_points_handler(query, user_id, context)
         elif query.data == "bonuses":
             await show_bonuses(query)
         elif query.data == "my_points":
@@ -368,7 +360,6 @@ async def show_coupon_selection(query, user_id):
             text += f"\n📭 *Hozircha yangi kuponlar mavjud emas.*"
         
         keyboard.extend([
-            [InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")],
             [InlineKeyboardButton("📤 Bal To'plash", callback_data="get_referral_link")],
             [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
         ])
@@ -459,184 +450,6 @@ async def get_ball_coupon(query, user_id):
         logger.error(f"get_ball_coupon da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# PUL ISHLASH TIZIMI - TO'G'IRLANGAN
-async def show_exchange_points(query, user_id):
-    """Ball almashish sahifasi"""
-    try:
-        user_points = get_user_points(user_id)
-        min_points = data['settings']['min_exchange_points']
-        exchange_rate = data['settings']['exchange_rate']
-        
-        text = f"""
-💰 *PUL ISHLASH*
-
-🎯 **Sizning ballaringiz:** {user_points} ball
-💵 **Minimal talab:** {min_points} ball
-💰 **Almashish kursi:** {min_points} ball = {exchange_rate:,} {data['settings']['currency']}
-
-⚠️ *DIQQAT:* Tugmani bosganingizda {min_points} ball hisobingizdan oladi va so'rov @baxtga_olga ga yuboriladi.
-"""
-
-        keyboard = []
-        
-        if user_points >= min_points:
-            keyboard.append([InlineKeyboardButton(f"💰 {min_points} BALLNI PULGA AYLANTIRISH", callback_data="confirm_exchange")])
-        else:
-            text += f"\n❌ *Ball yetarli emas!* {min_points - user_points} ball yetishmayapti."
-            keyboard.append([InlineKeyboardButton("📤 Bal To'plash", callback_data="get_referral_link")])
-        
-        keyboard.extend([
-            [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
-            [InlineKeyboardButton("💰 Mening Ballim", callback_data="my_points")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"show_exchange_points da xato: {e}")
-        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def confirm_exchange_handler(query, user_id):
-    """Pul ishlashni tasdiqlash sahifasi"""
-    try:
-        user_points = get_user_points(user_id)
-        min_points = data['settings']['min_exchange_points']
-        exchange_rate = data['settings']['exchange_rate']
-        
-        text = f"""
-⚠️ *PUL ISHLASHNI TASDIQLASH*
-
-💰 **Sizning joriy ballaringiz:** {user_points} ball
-💵 **Ayiriladigan ball:** {min_points} ball
-🎯 **Qoladigan ball:** {user_points - min_points} ball
-💰 **Olasiz:** {exchange_rate:,} {data['settings']['currency']}
-
-❓ *Ballarni pulga aylantirishni tasdiqlaysizmi?*
-
-⚠️ *Eslatma:* Tasdiqlaganingizdan so'ng:
-• {min_points} ball hisobingizdan oladi
-• So'rov @baxtga_olga ga yuboriladi
-• Tez orada siz bilan bog'lanishadi
-"""
-
-        keyboard = [
-            [InlineKeyboardButton("✅ HA, TASDIQLAYMAN", callback_data="process_exchange")],
-            [InlineKeyboardButton("❌ BEKOR QILISH", callback_data="exchange_points")],
-            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-    except Exception as e:
-        logger.error(f"confirm_exchange_handler da xato: {e}")
-        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-
-async def exchange_points_handler(query, user_id, context):
-    """Pul ishlash tugmasi bosilganda"""
-    try:
-        user_points = get_user_points(user_id)
-        min_points = data['settings']['min_exchange_points']
-        exchange_rate = data['settings']['exchange_rate']
-        
-        if user_points < min_points:
-            await query.edit_message_text(
-                f"❌ Ballaringiz yetarli emas!\n"
-                f"💰 Sizda: {user_points} ball\n"
-                f"💵 Minimal talab: {min_points} ball\n\n"
-                f"📤 Ball to'plash uchun:\n"
-                f"• Kunlik bonuslardan foydalaning\n"
-                f"• Referal havolangizni tarqating\n"
-                f"• Do'stlaringizni taklif qiling",
-                parse_mode='Markdown'
-            )
-            return
-        
-        # Ballarni hisobdan olib tashlash
-        if remove_user_points(user_id, min_points, f"Pulga almashish uchun yuborildi"):
-            # Admin ga xabar yuborish
-            user_data = data['users'].get(str(user_id), {})
-            user_name = user_data.get('name', 'Noma\'lum')
-            user_username = user_data.get('username', '')
-            
-            # Foydalanuvchi xabarini yaratish
-            user_message = f"""
-💸 *YANGI PUL ALMASHISH SO'ROVI*
-
-👤 *Foydalanuvchi ma'lumotlari:*
-• Ism: {user_name}
-• Username: @{user_username if user_username else 'mavjud emas'}
-• ID: `{user_id}`
-
-💰 *So'rov tafsilotlari:*
-• Ball miqdori: {min_points} ball
-• Pul miqdori: {exchange_rate:,} so'm
-• Sana: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-
-📝 *Foydalanuvchi xabari:*
-"Salom men {user_name} (foydalanuvchi ID: {user_id}) {min_points} ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
-"""
-            
-            try:
-                # Admin ga xabar yuborish
-                await context.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=user_message,
-                    parse_mode='Markdown'
-                )
-                
-                # Foydalanuvchiga tasdiqlash xabari
-                success_text = f"""
-✅ *So'rovingiz muvaffaqiyatli yuborildi!*
-
-💰 *Amalga oshirildi:*
-• Hisobingizdan: {min_points} ball olindi
-• Qolgan ball: {get_user_points(user_id)} ball
-• So'ralgan summa: {exchange_rate:,} so'm
-
-📨 *So'rovingiz @baxtga_olga ga yuborildi*
-⏰ *Tez orada siz bilan bog'lanishadi*
-
-📝 *Yuborilgan xabar:*
-"Salom men {user_name} (foydalanuvchi ID: {user_id}) {min_points} ballni hozirgi kurs bo'yicha 1xbet hisobimga {exchange_rate:,} so'm qilib olmoqchiman"
-
-💡 *Eslatma:* Admin siz bilan tez orada bog'lanadi va to'lov tafsilotlarini beradi.
-"""
-                
-                await query.edit_message_text(
-                    success_text,
-                    parse_mode='Markdown'
-                )
-                
-                data['stats']['total_exchanges'] += 1
-                save_data(data)
-                
-            except Exception as e:
-                logger.error(f"Adminga xabar yuborishda xato: {e}")
-                # Xato bo'lsa, ballarni qaytarish
-                add_user_points(user_id, min_points, "Xato tufayli qaytarildi")
-                await query.edit_message_text(
-                    "❌ Xatolik yuz berdi. So'rov adminga yuborilmadi.\n\n"
-                    "Iltimos, keyinroq qayta urinib ko'ring yoki @baxtga_olga ga to'g'ridan-to'g'ri murojaat qiling.",
-                    parse_mode='Markdown'
-                )
-        else:
-            await query.edit_message_text(
-                "❌ Ballarni olib tashlashda xatolik yuz berdi!\n\n"
-                "Iltimos, qayta urinib ko'ring yoki @baxtga_olga ga murojaat qiling.",
-                parse_mode='Markdown'
-            )
-            
-    except Exception as e:
-        logger.error(f"exchange_points_handler da xato: {e}")
-        await query.edit_message_text(
-            "❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.\n\n"
-            "Agar muammo takrorlansa, @baxtga_olga ga murojaat qiling.",
-            parse_mode='Markdown'
-        )
-
 # BONUSLAR BO'LIMI
 async def show_bonuses(query):
     """Bonuslar sahifasi"""
@@ -658,16 +471,21 @@ async def show_bonuses(query):
 🎯 **MelBet:**
 • Ro'yxatdan o'ting va bonus oling
 • AIFUT promokodini kiriting
+
+📱 **DB Bet:**
+• Yangi foydalanuvchilar uchun maxsus takliflar
+• Tezkor to'lovlar va yuqori koeffitsientlar
 """
 
         keyboard = [
             [
-                InlineKeyboardButton("🎰 1xBet Ro'yxatdan o'tish", url=BUKMAKER_LINKS['1xbet']),
-                InlineKeyboardButton("🎯 MelBet Ro'yxatdan o'tish", url=BUKMAKER_LINKS['melbet'])
+                InlineKeyboardButton("🎰 1xBet", url=BUKMAKER_LINKS['1xbet']),
+                InlineKeyboardButton("🎯 MelBet", url=BUKMAKER_LINKS['melbet']),
+                InlineKeyboardButton("💰 DB Bet", url=BUKMAKER_LINKS['dbbet'])
             ],
             [
                 InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons"),
-                InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")
+                InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")
             ],
             [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
         ]
@@ -686,8 +504,7 @@ async def show_my_points(query, user_id):
         user_data = data['users'].get(str(user_id), {})
         points = user_data.get('points', 0)
         referrals = user_data.get('referrals', 0)
-        min_points = data['settings']['min_exchange_points']
-        exchange_rate = data['settings']['exchange_rate']
+        coupon_price = data['settings']['coupon_price']
         
         text = f"""
 🏆 *MENING HISOBIM*
@@ -696,15 +513,15 @@ async def show_my_points(query, user_id):
 👥 **Referallar:** {referrals} ta
 💵 **1 referal:** {data['settings']['referral_points']} ball
 📅 **Kunlik bonus:** {data['settings']['daily_bonus']} ball
+🎟️ **Kupon narxi:** {coupon_price} ball
 
-📊 **Almashish imkoniyatlari:**
-• {min_points} ball = {exchange_rate:,} {data['settings']['currency']}
+📊 **Kupon olish imkoniyatlari:**
 """
 
-        if points >= min_points:
-            text += f"\n✅ **Almashish mumkin!**"
+        if points >= coupon_price:
+            text += f"✅ **Kupon olish mumkin!** - {points // coupon_price} ta kupon"
         else:
-            text += f"\n❌ **Almashish uchun:** {min_points - points} ball yetishmayapti"
+            text += f"❌ **Kupon uchun:** {coupon_price - points} ball yetishmayapti"
         
         # Kunlik bonus holati
         today = datetime.now().strftime("%Y-%m-%d")
@@ -714,7 +531,6 @@ async def show_my_points(query, user_id):
             text += "\n\n📅 *Bugun kunlik bonus olish uchun /start ni bosing!*"
         
         keyboard = [
-            [InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")],
             [InlineKeyboardButton("🎯 Kupon Olish", callback_data="get_coupons")],
             [InlineKeyboardButton("📤 Referal Havola", callback_data="get_referral_link")],
             [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
@@ -810,7 +626,7 @@ Botga kirib, daromad olishni boshlang:
         logger.error(f"share_referral_link da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# YORDAM BO'LIMI
+# YORDAM BO'LIMI - TO'G'IRLANGAN
 async def show_help(query):
     """Yordam sahifasi"""
     try:
@@ -819,21 +635,27 @@ async def show_help(query):
 
 ⚽ *Kuponlar:*
 • **Ball kuponlar** - 15 ball = 1 ta ekskluziv kupon
+• **Har bir kuponni faqat 1 marta sotib olish mumkin**
+• **Kuponlar admin tomonidan qo'shiladi**
 
 💰 *Ball Tizimi:*
 • **Yangi foydalanuvchi bonus** - 30 ball
 • **1 do'st taklif = 5 ball**
-• **Kunlik bonus** - 10 ball
-• **50 ball = 10,000 so'm** almashish
+• **Kunlik bonus** - 10 ball (har kuni /start bosish orqali)
 
 🎯 *Qanday boshlash kerak:*
 1. 📤 Do'stlaringizni taklif qiling
 2. 💰 Ball to'plang
 3. 🎯 Kuponlar oling
-4. 💸 Ballarni pulga aylantiring
+4. ⚽ Futbol baholariga qo'llang
+
+📱 *Bukmeker Kontorlari:*
+• **1xBet** - Keng futbol turnirlari
+• **MelBet** - Yuqori koeffitsientlar  
+• **DB Bet** - Tezkor to'lovlar
 
 📞 *Qo'llab-quvvatlash:*
-@baxtga_olga
+Agar savollaringiz bo'lsa, @baxtga_olga ga murojaat qiling.
 """
 
         keyboard = [
@@ -862,20 +684,19 @@ async def back_to_main(query):
 👥 Referallar: {get_user_referrals(user_id)} ta
 💰 HISOBINGIZDA: {get_user_points(user_id)} ball
 
-Ball to'plang, kuponlar oling va yutuqlarga erishing! 🚀
+Ball to'plang va kuponlar oling! 🚀
 """
 
         keyboard = [
             [
                 InlineKeyboardButton("🎯 KUPONLAR OLISH", callback_data="get_coupons"),
-                InlineKeyboardButton("💰 PUL ISHLASH", callback_data="exchange_points")
+                InlineKeyboardButton("🎁 BONUSLAR", callback_data="bonuses")
             ],
             [
-                InlineKeyboardButton("🎁 BONUSLAR", callback_data="bonuses"),
-                InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points")
+                InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points"),
+                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link")
             ],
             [
-                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link"),
                 InlineKeyboardButton("ℹ️ YORDAM", callback_data="help")
             ]
         ]
@@ -957,7 +778,6 @@ async def show_admin_stats(query):
 • Jami berilgan: {data['stats']['total_points_given']} ball
 • Foydalanuvchilarda: {total_points} ball
 • Sotilgan kuponlar: {data['stats']['total_coupons_sold']} ta
-• Pul almashishlar: {data['stats']['total_exchanges']} ta
 
 ⚽ **Kuponlar:**
 • Mavjud kuponlar: {len(data['coupons']['available'])} ta
@@ -1122,13 +942,13 @@ def main():
         print("✅ Bot muvaffaqiyatli ishga tushdi!")
         print("🤖 Bot ishlayapti...")
         print(f"👑 Admin ID: {ADMIN_ID}")
-        print("🎯 MUKAMMAL TIZIM:")
+        print("🎯 YANGILANGAN TIZIM:")
         print("   • 🎁 Yangi foydalanuvchi: 30 ball")
-        print("   • 📅 Kunlik bonus: 10 ball")
+        print("   • 📅 Kunlik bonus: 10 ball") 
         print("   • 📤 Referal: 5 ball")
         print("   • 🎯 Kupon narxi: 15 ball")
-        print("   • 💰 Pul ishlash: 50 ball = 10,000 so'm")
-        print("   • 📨 So'rov @baxtga_olga ga yuboriladi")
+        print("   • ❌ Pul ishlash funksiyasi O'CHIRILDI")
+        print("   • ✅ Yordam bo'limi to'g'rilandi")
         print("   • 🔄 Har bir kuponni hamma foydalanuvchi 1 marta sotib oladi")
         
         application.run_polling()
