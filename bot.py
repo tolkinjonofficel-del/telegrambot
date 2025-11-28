@@ -319,6 +319,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_admin_add_coupon(query)
         elif query.data == "admin_broadcast":
             await show_admin_broadcast(query)
+        elif query.data == "admin_manage_coupons":
+            await show_admin_manage_coupons(query)
+        elif query.data.startswith("admin_delete_coupon_"):
+            coupon_id = query.data.replace("admin_delete_coupon_", "")
+            await delete_coupon(query, coupon_id)
+        elif query.data == "admin_view_coupons":
+            await show_admin_view_coupons(query)
             
     except Exception as e:
         logger.error(f"Button handlerda xato: {e}")
@@ -664,7 +671,7 @@ Ball to'plang va kuponlar oling! 🚀
         logger.error(f"back_to_main da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-# ADMIN PANELI
+# ADMIN PANELI - YANGILANGAN
 async def show_admin_panel(query):
     """Admin panelini ko'rsatish"""
     try:
@@ -683,6 +690,7 @@ async def show_admin_panel(query):
 👥 Jami foydalanuvchilar: {total_users} ta
 💰 Jami ballar: {total_points} ball
 🎟️ Sotilgan kuponlar: {data['stats']['total_coupons_sold']} ta
+📂 Mavjud kuponlar: {len(data['coupons']['available'])} ta
 
 🏆 **Top Referallar:**
 """
@@ -696,6 +704,7 @@ async def show_admin_panel(query):
         keyboard = [
             [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
             [InlineKeyboardButton("🎯 Kupon Qo'shish", callback_data="admin_add_coupon")],
+            [InlineKeyboardButton("📂 Kuponlarni Boshqarish", callback_data="admin_manage_coupons")],
             [InlineKeyboardButton("📢 Reklama Yuborish", callback_data="admin_broadcast")],
             [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
         ]
@@ -729,6 +738,7 @@ async def show_admin_stats(query):
 
 ⚽ **Kuponlar:**
 • Mavjud kuponlar: {len(data['coupons']['available'])} ta
+• Sotilgan kuponlar: {sum(len(users) for users in data['coupons']['purchased'].values())} ta
 """
 
         keyboard = [
@@ -769,6 +779,137 @@ Yuborilgan xabar avtomatik tarzda qayta ishlanadi.
         
     except Exception as e:
         logger.error(f"show_admin_add_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+# YANGI: KUPONLARNI BOSHQARISH
+async def show_admin_manage_coupons(query):
+    """Kuponlarni boshqarish sahifasi"""
+    try:
+        available_coupons = data['coupons']['available']
+        
+        if not available_coupons:
+            text = "📭 *Hozircha kuponlar mavjud emas*"
+            keyboard = [
+                [InlineKeyboardButton("🎯 Kupon Qo'shish", callback_data="admin_add_coupon")],
+                [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
+                [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+            ]
+        else:
+            text = f"""
+📂 *KUPONLARNI BOSHQARISH*
+
+📊 **Mavjud kuponlar:** {len(available_coupons)} ta
+
+🎯 **Kuponlar ro'yxati:**
+"""
+            keyboard = []
+            
+            for i, coupon in enumerate(available_coupons, 1):
+                purchased_count = len(data['coupons']['purchased'].get(coupon['id'], []))
+                text += f"\n{i}. {coupon['teams']} - {coupon['time']}\n"
+                text += f"   🎯 {coupon['prediction']} | 📊 {coupon['odds']}\n"
+                text += f"   👥 Sotilgan: {purchased_count} ta\n"
+                
+                # Har bir kupon uchun o'chirish tugmasi
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"❌ {coupon['teams'][:20]}...", 
+                        callback_data=f"admin_delete_coupon_{coupon['id']}"
+                    )
+                ])
+            
+            text += "\n🔧 **Harakatlar:**"
+            keyboard.extend([
+                [InlineKeyboardButton("📋 Kuponlarni Ko'rish", callback_data="admin_view_coupons")],
+                [InlineKeyboardButton("🎯 Yangi Kupon Qo'shish", callback_data="admin_add_coupon")],
+                [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
+                [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+            ])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"show_admin_manage_coupons da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+# YANGI: KUPONNI O'CHIRISH
+async def delete_coupon(query, coupon_id):
+    """Kuponni o'chirish"""
+    try:
+        # Kuponni topish
+        coupon_to_delete = None
+        for coupon in data['coupons']['available']:
+            if coupon['id'] == coupon_id:
+                coupon_to_delete = coupon
+                break
+        
+        if not coupon_to_delete:
+            await query.edit_message_text("❌ Kupon topilmadi!")
+            return
+        
+        # Kuponni o'chirish
+        data['coupons']['available'] = [c for c in data['coupons']['available'] if c['id'] != coupon_id]
+        
+        # Sotib olinganlar ro'yxatidan ham o'chirish
+        if coupon_id in data['coupons']['purchased']:
+            del data['coupons']['purchased'][coupon_id]
+        
+        save_data(data)
+        
+        await query.edit_message_text(
+            f"✅ *Kupon muvaffaqiyatli o'chirildi!*\n\n"
+            f"🏆 {coupon_to_delete['teams']}\n"
+            f"⏰ {coupon_to_delete['time']}\n"
+            f"🎯 {coupon_to_delete['prediction']}\n\n"
+            f"📊 Qolgan kuponlar: {len(data['coupons']['available'])} ta",
+            parse_mode='Markdown'
+        )
+        
+        # Kuponlar boshqaruv sahifasiga qaytish
+        await show_admin_manage_coupons(query)
+        
+    except Exception as e:
+        logger.error(f"delete_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+# YANGI: KUPONLARNI KO'RISH
+async def show_admin_view_coupons(query):
+    """Barcha kuponlarni ko'rish"""
+    try:
+        available_coupons = data['coupons']['available']
+        
+        if not available_coupons:
+            text = "📭 *Hozircha kuponlar mavjud emas*"
+        else:
+            text = "📋 *BARCHA KUPONLAR*\n\n"
+            
+            for i, coupon in enumerate(available_coupons, 1):
+                purchased_count = len(data['coupons']['purchased'].get(coupon['id'], []))
+                text += f"🎟️ *Kupon {i}:*\n"
+                text += f"🏆 **O'yin:** {coupon['teams']}\n"
+                text += f"⏰ **Vaqt:** {coupon['time']}\n"
+                text += f"🌍 **Liga:** {coupon['league']}\n"
+                text += f"🎯 **Bashorat:** {coupon['prediction']}\n"
+                text += f"📊 **Koeffitsient:** {coupon['odds']}\n"
+                text += f"💎 **Ishonch:** {coupon['confidence']}\n"
+                text += f"👥 **Sotilgan:** {purchased_count} ta\n"
+                text += f"🔑 **Kodlar:** 1xBet: `{coupon['codes']['1xbet']}`, MelBet: `{coupon['codes']['melbet']}`, DB Bet: `{coupon['codes']['dbbet']}`\n"
+                text += f"📅 **Qo'shilgan:** {coupon['added_date']}\n"
+                text += f"🆔 **ID:** {coupon['id']}\n\n"
+                text += "─" * 30 + "\n\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("📂 Kuponlarni Boshqarish", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("👑 Admin Panel", callback_data="admin")],
+            [InlineKeyboardButton("🔙 Bosh Menyu", callback_data="back")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"show_admin_view_coupons da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
 async def show_admin_broadcast(query):
@@ -895,6 +1036,7 @@ def main():
         print("   • 📅 Kunlik bonus: 10 ball") 
         print("   • 📤 Referal: 5 ball")
         print("   • 🎯 Kupon narxi: 15 ball")
+        print("   • 📂 Kuponlarni boshqarish funksiyasi QO'SHILDI")
         print("   • ❌ Pul ishlash funksiyasi O'CHIRILDI")
         print("   • ❌ Yordam tugmasi O'CHIRILDI")
         print("   • 🔄 Har bir kuponni hamma foydalanuvchi 1 marta sotib oladi")
