@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from datetime import datetime, timedelta
 
 # Bot tokeni
-TOKEN = "8114630640:AAHqHzsEyL7s7yckyLXfOHltm8m8cYh4F2Q"
+TOKEN = "7454675594:AAHZbxRFubVFTUlrnCRXAfD8s2HFU32J5Zg"
 
 # Admin ID
 ADMIN_ID = 7081746531
