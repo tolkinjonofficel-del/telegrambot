@@ -652,7 +652,7 @@ Ball to'plang va kuponlar oling! 🚀
             ],
             [
                 InlineKeyboardButton("📊 MENING BALLIM", callback_data="my_points"),
-                InlineKeyboardButton("📤 REFERAL HAVOLA", callback_data="get_referral_link")
+                InlineKeyboardButton("🔰BALL TOPLASH", callback_data="get_referral_link")
             ]
         ]
         
