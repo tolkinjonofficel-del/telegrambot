@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.constants import ParseMode
 
 # Bot tokeni (Environment variable dan olish yaxshiroq)
-TOKEN = os.getenv("BOT_TOKEN", "7454675594:AAHZbxRFubVFTUlrnCRXAfD8s2HFU32J5Zg")
+TOKEN = os.getenv("BOT_TOKEN", "7871992128:AAF7RGJDLKPr34jUJFXuE7mpeZaMc6812ec")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7081746531"))
 
 # Ma'lumotlarni saqlash fayli
