@@ -3,13 +3,14 @@ import json
 import logging
 import random
 import asyncio
+import re
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.constants import ParseMode
 
 # Bot tokeni (Environment variable dan olish yaxshiroq)
-TOKEN = os.getenv("BOT_TOKEN", "7454675594:AAHZbxRFubVFTUlrnCRXAfD8s2HFU32J5Zg")
+TOKEN = os.getenv("BOT_TOKEN", "8200926398:AAGIh5pEOGL1s8Dw50_DBVigjafsrkaHjOM")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7081746531"))
 
 # Ma'lumotlarni saqlash fayli
@@ -34,7 +35,8 @@ default_data = {
     "users": {},
     "coupons": {
         "available": [],
-        "purchased": {}
+        "purchased": {},
+        "archive": []
     },
     "settings": {
         "referral_points": 5,
@@ -54,7 +56,8 @@ default_data = {
         "last_coupon_id": 1000
     },
     "admin": {
-        "broadcast_lock": False
+        "broadcast_lock": False,
+        "last_broadcast": None
     }
 }
 
@@ -370,21 +373,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_admin_broadcast(query)
         elif query.data == "admin_manage_coupons":
             await show_admin_manage_coupons(query)
-        elif query.data.startswith("admin_delete_coupon_"):
-            coupon_id = query.data.replace("admin_delete_coupon_", "")
-            await delete_coupon(query, coupon_id)
         elif query.data == "admin_view_coupons":
             await show_admin_view_coupons(query)
+        elif query.data == "admin_archive_coupons":
+            await show_admin_archive_coupons(query)
+        elif query.data.startswith("admin_delete_coupon_"):
+            coupon_id = query.data.replace("admin_delete_coupon_", "")
+            await admin_delete_coupon(query, coupon_id)
+        elif query.data.startswith("admin_edit_coupon_"):
+            coupon_id = query.data.replace("admin_edit_coupon_", "")
+            await admin_edit_coupon(query, coupon_id)
+        elif query.data.startswith("admin_archive_coupon_"):
+            coupon_id = query.data.replace("admin_archive_coupon_", "")
+            await admin_archive_coupon(query, coupon_id)
+        elif query.data.startswith("admin_restore_coupon_"):
+            coupon_id = query.data.replace("admin_restore_coupon_", "")
+            await admin_restore_coupon(query, coupon_id)
         elif query.data == "admin_back":
             await show_admin_panel(query)
         elif query.data == "admin_add_user_points":
             await show_admin_add_points(query)
+        elif query.data == "admin_settings":
+            await show_admin_settings(query)
         elif query.data.startswith("admin_add_points_"):
             parts = query.data.replace("admin_add_points_", "").split("_")
             if len(parts) == 2:
                 target_user_id = int(parts[0])
                 points = int(parts[1])
                 await add_user_points(query, target_user_id, points, context)
+        elif query.data.startswith("setting_"):
+            await handle_setting_change(query, query.data)
             
     except Exception as e:
         logger.error(f"Button handlerda xato: {e}")
@@ -966,8 +984,10 @@ async def show_admin_panel(query):
         keyboard = [
             [InlineKeyboardButton("📊 STATISTIKA", callback_data="admin_stats")],
             [InlineKeyboardButton("➕ KUPON QO'SHISH", callback_data="admin_add_coupon")],
-            [InlineKeyboardButton("📋 KUPONLARNI KO'RISH", callback_data="admin_view_coupons")],
+            [InlineKeyboardButton("📋 KUPONLARNI BOSHQARISH", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🗄️ ARXIV KUPONLAR", callback_data="admin_archive_coupons")],
             [InlineKeyboardButton("🎯 BALL QO'SHISH", callback_data="admin_add_user_points")],
+            [InlineKeyboardButton("⚙️ SOZLAMALAR", callback_data="admin_settings")],
             [InlineKeyboardButton("📢 REKLAMA YUBORISH", callback_data="admin_broadcast")],
             [InlineKeyboardButton("🔙 BOSH MENYU", callback_data="back")]
         ]
@@ -997,15 +1017,29 @@ async def show_admin_stats(query):
                 except:
                     pass
         
+        # Oxirgi 24 soatda qo'shilgan foydalanuvchilar
+        new_users_24h = 0
+        for user in data_manager.data['users'].values():
+            joined_date = user.get('joined_date')
+            if joined_date:
+                try:
+                    joined = datetime.strptime(joined_date, "%Y-%m-%d").date()
+                    if (today - joined).days <= 1:
+                        new_users_24h += 1
+                except:
+                    pass
+        
         text = f"""
 📊 *BOT STATISTIKASI*
 
 👥 **Umumiy foydalanuvchilar:** {data_manager.data['stats']['total_users']} ta
 📈 **Faol foydalanuvchilar (bugun):** {active_today} ta
+🆕 **Yangi foydalanuvchilar (24 soat):** {new_users_24h} ta
 💰 **Umumiy ballar:** {total_points} ball
 📤 **Umumiy referallar:** {total_referrals} ta
 🎟️ **Sotilgan kuponlar:** {data_manager.data['stats']['total_coupons_sold']} ta
 💸 **Berilgan ballar:** {data_manager.data['stats']['total_points_given']} ball
+📋 **Mavjud kuponlar:** {len(data_manager.data['coupons']['available'])} ta
 
 ⚙️ **SOZLAMALAR:**
 • Yangi foydalanuvchi bonus: {data_manager.data['settings']['welcome_points']} ball
@@ -1059,7 +1093,9 @@ async def show_admin_add_coupon(query):
 async def show_admin_broadcast(query):
     """Reklama yuborish"""
     try:
-        text = """
+        last_broadcast = data_manager.data['admin'].get('last_broadcast', "Hali yo'q")
+        
+        text = f"""
 📢 *REKLAMA YUBORISH*
 
 ✍️ *Qo'llanma:*
@@ -1067,12 +1103,14 @@ async def show_admin_broadcast(query):
 2. Xabarni shu yerga yuboring
 3. Xabar barcha foydalanuvchilarga yuboriladi
 
-⚠️ *Diqqat:* Bu jarayon bir necha daqiqa davom etishi mumkin
-   Har 10 ta foydalanuvchiga progress yangilanadi
+⚠️ *Diqqat:* 
+• Bu jarayon bir necha daqiqa davom etishi mumkin
+• Har 30 ta foydalanuvchiga progress yangilanadi
+• Reklama yuborilayotganda boshqa reklama yuborish mumkin emas
 
 📊 *Joriy holat:*
 • Jami foydalanuvchilar: {len(data_manager.data['users'])} ta
-• Oxirgi reklama: {data_manager.data['stats'].get('last_broadcast', 'Hali yo\'q')}
+• Oxirgi reklama: {last_broadcast}
 """
         
         keyboard = [
@@ -1084,6 +1122,41 @@ async def show_admin_broadcast(query):
         
     except Exception as e:
         logger.error(f"show_admin_broadcast da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def show_admin_manage_coupons(query):
+    """Kuponlarni boshqarish paneli"""
+    try:
+        available_coupons = data_manager.data['coupons']['available']
+        
+        if not available_coupons:
+            text = "📭 *Hozircha kuponlar mavjud emas*"
+            keyboard = [[InlineKeyboardButton("➕ KUPON QO'SHISH", callback_data="admin_add_coupon")]]
+        else:
+            text = "🎟️ *MAVJUD KUPONLAR: BOSHQARISH*\n\n"
+            for i, coupon in enumerate(available_coupons[:10], 1):  # Faqat birinchi 10 tasi
+                purchased_count = len(data_manager.data['coupons']['purchased'].get(coupon['id'], []))
+                text += f"{i}. *{coupon['teams']}*\n"
+                text += f"   ⏰ {coupon['time']} | 🎯 {coupon['prediction']}\n"
+                text += f"   💰 Narxi: {data_manager.data['settings']['coupon_price']} ball\n"
+                text += f"   📊 Sotilgan: {purchased_count} ta\n"
+                text += f"   🆔 ID: `{coupon['id']}`\n"
+                text += f"   [Tahrirlash](tg://btn/{coupon['id']}) | [Arxivlash](tg://btn/{coupon['id']}) | [O'chirish](tg://btn/{coupon['id']})\n\n"
+            
+            if len(available_coupons) > 10:
+                text += f"\n... va yana {len(available_coupons) - 10} ta kupon"
+        
+        keyboard = [
+            [InlineKeyboardButton("➕ YANGI KUPON QO'SHISH", callback_data="admin_add_coupon")],
+            [InlineKeyboardButton("🗄️ ARXIV KUPONLAR", callback_data="admin_archive_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"show_admin_manage_coupons da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
 async def show_admin_view_coupons(query):
@@ -1100,10 +1173,14 @@ async def show_admin_view_coupons(query):
                 text += f"{i}. *{coupon['teams']}*\n"
                 text += f"   ⏰ {coupon['time']} | 🌍 {coupon['league']}\n"
                 text += f"   🎯 {coupon['prediction']} | 📊 {coupon['odds']}\n"
-                text += f"   💎 Sotilgan: {purchased_count} ta\n"
-                text += f"   🆔 ID: {coupon['id']}\n\n"
+                text += f"   💎 Ishonch: {coupon['confidence']}\n"
+                text += f"   💰 Sotilgan: {purchased_count} ta\n"
+                text += f"   🆔 ID: `{coupon['id']}`\n\n"
         
-        keyboard = [[InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]]
+        keyboard = [
+            [InlineKeyboardButton("📝 BOSHQARISH PANELI", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
         
@@ -1111,94 +1188,40 @@ async def show_admin_view_coupons(query):
         logger.error(f"show_admin_view_coupons da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-async def show_admin_add_points(query):
-    """Foydalanuvchiga ball qo'shish"""
+async def show_admin_archive_coupons(query):
+    """Arxiv kuponlarni ko'rsatish"""
     try:
-        # Foydalanuvchilarni ro'yxatini tayyorlash
-        users_list = []
-        text = "👤 *FOYDALANUVCHILAR RO'YXATI:*\n\n"
+        archived_coupons = data_manager.data['coupons'].get('archive', [])
         
-        for user_id_str, user_data in list(data_manager.data['users'].items())[:50]:  # Faqat birinchi 50 tasi
-            user_name = user_data.get('name', 'Noma\'lum')
-            user_points = user_data.get('points', 0)
-            user_refs = user_data.get('referrals', 0)
+        if not archived_coupons:
+            text = "🗄️ *Arxivda kuponlar mavjud emas*"
+        else:
+            text = "🗄️ *ARXIV KUPONLAR:*\n\n"
+            for i, coupon in enumerate(archived_coupons[:10], 1):  # Faqat birinchi 10 tasi
+                purchased_count = len(data_manager.data['coupons']['purchased'].get(coupon['id'], []))
+                text += f"{i}. *{coupon['teams']}*\n"
+                text += f"   ⏰ {coupon['time']} | 🎯 {coupon['prediction']}\n"
+                text += f"   📊 Sotilgan: {purchased_count} ta\n"
+                text += f"   🗓️ Arxiv sana: {coupon.get('archived_date', 'Noma\'lum')}\n"
+                text += f"   🆔 ID: `{coupon['id']}`\n"
+                text += f"   [Qayta tiklash](tg://btn/{coupon['id']})\n\n"
             
-            text += f"👤 *{user_name}*\n"
-            text += f"   🆔: {user_id_str}\n"
-            text += f"   💰: {user_points} ball\n"
-            text += f"   📤: {user_refs} referal\n\n"
-            
-            users_list.append({
-                'id': user_id_str,
-                'name': user_name,
-                'points': user_points
-            })
+            if len(archived_coupons) > 10:
+                text += f"\n... va yana {len(archived_coupons) - 10} ta kupon"
         
-        text += "\n👇 *Ball qo'shish uchun foydalanuvchi ID sini va ball miqdorini yuboring:*\n"
-        text += "`id_raqam ball_miqdori`\n\n"
-        text += "*Misol:* `123456789 50`\n"
-        text += "Bu 123456789 ID li foydalanuvchiga 50 ball qo'shadi"
+        keyboard = [
+            [InlineKeyboardButton("📝 BOSHQARISH PANELI", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
         
-        keyboard = [[InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
         
     except Exception as e:
-        logger.error(f"show_admin_add_points da xato: {e}")
+        logger.error(f"show_admin_archive_coupons da xato: {e}")
         await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
-async def add_user_points(query, user_id, points, context):
-    """Foydalanuvchiga ball qo'shish"""
-    try:
-        user_id_str = str(user_id)
-        
-        if user_id_str not in data_manager.data['users']:
-            await query.edit_message_text(f"❌ Foydalanuvchi topilmadi: {user_id}")
-            return
-        
-        # Ballarni qo'shish
-        data_manager.data['users'][user_id_str]['points'] = data_manager.data['users'][user_id_str].get('points', 0) + points
-        data_manager.data['stats']['total_points_given'] += points
-        
-        # Tarixga yozish
-        if 'points_history' not in data_manager.data['users'][user_id_str]:
-            data_manager.data['users'][user_id_str]['points_history'] = []
-        
-        data_manager.data['users'][user_id_str]['points_history'].append({
-            'points': points,
-            'reason': f"Admin tomonidan qo'shildi",
-            'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
-            'type': 'admin_add'
-        })
-        
-        await data_manager.save_data()
-        
-        # Foydalanuvchiga xabar yuborish
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"🎉 *TABRIKLAYMIZ!*\n\n"
-                     f"💰 Admin tomonidan sizga {points} ball qo'shildi!\n"
-                     f"🎯 Jami ball: {data_manager.data['users'][user_id_str]['points']}\n\n"
-                     f"🎟️ Endi siz kuponlar olishingiz mumkin!",
-                parse_mode=ParseMode.MARKDOWN
-            )
-        except Exception as e:
-            logger.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
-        
-        await query.edit_message_text(
-            f"✅ *Ball qo'shildi!*\n\n"
-            f"👤 Foydalanuvchi: {data_manager.data['users'][user_id_str].get('name', 'Noma\'lum')}\n"
-            f"💰 Qo'shilgan ball: {points}\n"
-            f"🎯 Jami ball: {data_manager.data['users'][user_id_str]['points']}",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        
-    except Exception as e:
-        logger.error(f"add_user_points da xato: {e}")
-        await query.edit_message_text(f"❌ Xatolik: {str(e)}")
-
-async def delete_coupon(query, coupon_id):
+async def admin_delete_coupon(query, coupon_id):
     """Kuponi o'chirish"""
     try:
         # Kuponi topish
@@ -1220,17 +1243,372 @@ async def delete_coupon(query, coupon_id):
         
         await data_manager.save_data()
         
+        text = f"""
+✅ *KUPON O'CHIRILDI!*
+
+🏆 {coupon_to_delete['teams']}
+🎯 {coupon_to_delete['prediction']}
+📊 Koeffitsient: {coupon_to_delete['odds']}
+🆔 ID: {coupon_id}
+
+📊 Qolgan kuponlar: {len(data_manager.data['coupons']['available'])} ta
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 BOSHQARISH PANELI", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"admin_delete_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def admin_archive_coupon(query, coupon_id):
+    """Kuponi arxivga o'tkazish"""
+    try:
+        # Kuponi topish
+        coupon_to_archive = None
+        for coupon in data_manager.data['coupons']['available']:
+            if coupon['id'] == coupon_id:
+                coupon_to_archive = coupon
+                break
+        
+        if not coupon_to_archive:
+            await query.edit_message_text("❌ Kupon topilmadi")
+            return
+        
+        # Arxiv sana qo'shish
+        coupon_to_archive['archived_date'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        # Kuponi arxivga o'tkazish
+        data_manager.data['coupons']['available'] = [
+            c for c in data_manager.data['coupons']['available'] 
+            if c['id'] != coupon_id
+        ]
+        
+        if 'archive' not in data_manager.data['coupons']:
+            data_manager.data['coupons']['archive'] = []
+        
+        data_manager.data['coupons']['archive'].append(coupon_to_archive)
+        
+        await data_manager.save_data()
+        
+        text = f"""
+🗄️ *KUPON ARXIVLANDI!*
+
+🏆 {coupon_to_archive['teams']}
+🎯 {coupon_to_archive['prediction']}
+📊 Koeffitsient: {coupon_to_archive['odds']}
+🆔 ID: {coupon_id}
+🗓️ Arxiv sana: {coupon_to_archive['archived_date']}
+
+📊 Qolgan kuponlar: {len(data_manager.data['coupons']['available'])} ta
+📂 Arxivda: {len(data_manager.data['coupons']['archive'])} ta
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 BOSHQARISH PANELI", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🗄️ ARXIV KUPONLAR", callback_data="admin_archive_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"admin_archive_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def admin_restore_coupon(query, coupon_id):
+    """Kuponi arxivdan qayta tiklash"""
+    try:
+        # Kuponi arxivdan topish
+        coupon_to_restore = None
+        for coupon in data_manager.data['coupons']['archive']:
+            if coupon['id'] == coupon_id:
+                coupon_to_restore = coupon
+                break
+        
+        if not coupon_to_restore:
+            await query.edit_message_text("❌ Kupon topilmadi")
+            return
+        
+        # Archividan olib tashlash
+        data_manager.data['coupons']['archive'] = [
+            c for c in data_manager.data['coupons']['archive'] 
+            if c['id'] != coupon_id
+        ]
+        
+        # Arxiv sana olib tashlash
+        if 'archived_date' in coupon_to_restore:
+            del coupon_to_restore['archived_date']
+        
+        # Kuponni qayta qo'shish
+        data_manager.data['coupons']['available'].append(coupon_to_restore)
+        
+        await data_manager.save_data()
+        
+        text = f"""
+🔄 *KUPON QAYTA TIKLANDI!*
+
+🏆 {coupon_to_restore['teams']}
+🎯 {coupon_to_restore['prediction']}
+📊 Koeffitsient: {coupon_to_restore['odds']}
+🆔 ID: {coupon_id}
+
+📊 Qolgan kuponlar: {len(data_manager.data['coupons']['available'])} ta
+📂 Arxivda: {len(data_manager.data['coupons']['archive'])} ta
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("📝 BOSHQARISH PANELI", callback_data="admin_manage_coupons")],
+            [InlineKeyboardButton("🗄️ ARXIV KUPONLAR", callback_data="admin_archive_coupons")],
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"admin_restore_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def admin_edit_coupon(query, coupon_id):
+    """Kuponi tahrirlash"""
+    try:
+        # Kuponi topish
+        coupon_to_edit = None
+        for coupon in data_manager.data['coupons']['available']:
+            if coupon['id'] == coupon_id:
+                coupon_to_edit = coupon
+                break
+        
+        if not coupon_to_edit:
+            await query.edit_message_text("❌ Kupon topilmadi")
+            return
+        
+        text = f"""
+✏️ *KUPON TAXRIRLASH*
+
+🆔 *Kupon ID:* {coupon_id}
+
+📝 *Joriy ma'lumotlar:*
+• ⏰ Vaqt: {coupon_to_edit['time']}
+• 🌍 Liga: {coupon_to_edit['league']}
+• 🏆 Jamoalar: {coupon_to_edit['teams']}
+• 🎯 Bashorat: {coupon_to_edit['prediction']}
+• 📊 Koeffitsient: {coupon_to_edit['odds']}
+• 💎 Ishonch: {coupon_to_edit['confidence']}
+• 🔑 1xBet kodi: {coupon_to_edit['codes']['1xbet']}
+• 🔑 MelBet kodi: {coupon_to_edit['codes']['melbet']}
+• 🔑 DB Bet kodi: {coupon_to_edit['codes']['dbbet']}
+
+✍️ *Tahrirlash uchun yangi ma'lumotlarni formatda yuboring:*
+`vaqt | liga | jamoalar | bashorat | koeffitsient | ishonch | 1xbet_kodi | melbet_kodi | dbbet_kodi`
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 BOSHQARISH PANELI", callback_data="admin_manage_coupons")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"admin_edit_coupon da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def show_admin_add_points(query):
+    """Foydalanuvchiga ball qo'shish"""
+    try:
+        # Eng ko'p balli foydalanuvchilarni ko'rsatish
+        users_with_points = []
+        for user_id_str, user_data in data_manager.data['users'].items():
+            users_with_points.append({
+                'id': user_id_str,
+                'name': user_data.get('name', 'Noma\'lum'),
+                'username': user_data.get('username'),
+                'points': user_data.get('points', 0),
+                'referrals': user_data.get('referrals', 0)
+            })
+        
+        # Ballari bo'yicha tartiblash
+        users_with_points.sort(key=lambda x: x['points'], reverse=True)
+        
+        text = "👤 *FOYDALANUVCHILAR: BALL QO'SHISH*\n\n"
+        text += "🏆 *Top 10 foydalanuvchi:*\n\n"
+        
+        for i, user in enumerate(users_with_points[:10], 1):
+            username = f"@{user['username']}" if user['username'] else "Yo'q"
+            text += f"{i}. *{user['name']}*\n"
+            text += f"   👤 {username}\n"
+            text += f"   💰 {user['points']} ball\n"
+            text += f"   📤 {user['referrals']} referal\n"
+            text += f"   🆔 `{user['id']}`\n\n"
+        
+        text += "\n👇 *Ball qo'shish uchun foydalanuvchi ID sini va ball miqdorini yuboring:*\n"
+        text += "`id_raqam ball_miqdori`\n\n"
+        text += "*Misol:* `123456789 50`\n"
+        text += "Bu 123456789 ID li foydalanuvchiga 50 ball qo'shadi\n\n"
+        text += "⚠️ *Diqqat:* Manfiy ball ham qo'shish mumkin (ballarni kamaytirish uchun)"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"show_admin_add_points da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def show_admin_settings(query):
+    """Admin sozlamalari"""
+    try:
+        settings = data_manager.data['settings']
+        
+        text = f"""
+⚙️ *BOT SOZLAMALARI*
+
+📊 *Joriy sozlamalar:*
+• 🎁 Yangi foydalanuvchi bonus: *{settings['welcome_points']} ball*
+• 📅 Kunlik bonus: *{settings['daily_bonus']} ball*
+• 📤 Referal bonus: *{settings['referral_points']} ball*
+• 🎯 Kupon narxi: *{settings['coupon_price']} ball*
+• 💰 Minimal almashtirish: *{settings['min_exchange_points']} ball*
+• 💵 Almashinuv kursi: *1 ball = {settings['exchange_rate']} {settings['currency']}*
+• 🤖 Bot username: @{settings.get('bot_username', 'not_set')}
+
+✍️ *Sozlamalarni o'zgartirish uchun:*
+`setting_nomi yangi_qiymat`
+
+📋 *Misol:*
+`welcome_points 50` - Yangi foydalanuvchi bonusini 50 ball qilish
+`daily_bonus 15` - Kunlik bonusni 15 ball qilish
+`referral_points 10` - Referal bonusni 10 ball qilish
+`coupon_price 20` - Kupon narxini 20 ball qilish
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 ADMIN PANELGA QAYTISH", callback_data="admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"show_admin_settings da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def handle_setting_change(query, data):
+    """Sozlamalarni o'zgartirish"""
+    try:
+        setting_name = data.replace("setting_", "")
+        
+        text = f"""
+✏️ *SOZLAMA O'ZGARTIRISH*
+
+🔧 Sozlama: `{setting_name}`
+
+📝 Joriy qiymat: {data_manager.data['settings'].get(setting_name, 'Noma\'lum')}
+
+✍️ Yangi qiymatni kiriting:
+"""
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 SOZLAMALARGA QAYTISH", callback_data="admin_settings")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"handle_setting_change da xato: {e}")
+        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+
+async def add_user_points(query, user_id, points, context):
+    """Foydalanuvchiga ball qo'shish"""
+    try:
+        user_id_str = str(user_id)
+        
+        if user_id_str not in data_manager.data['users']:
+            await query.edit_message_text(f"❌ Foydalanuvchi topilmadi: {user_id}")
+            return
+        
+        # Ballarni qo'shish
+        old_points = data_manager.data['users'][user_id_str]['points']
+        new_points = old_points + points
+        if new_points < 0:
+            new_points = 0
+        
+        data_manager.data['users'][user_id_str]['points'] = new_points
+        
+        if points > 0:
+            data_manager.data['stats']['total_points_given'] += points
+        
+        # Tarixga yozish
+        if 'points_history' not in data_manager.data['users'][user_id_str]:
+            data_manager.data['users'][user_id_str]['points_history'] = []
+        
+        operation_type = 'admin_add' if points > 0 else 'admin_remove'
+        operation_text = 'qo\'shildi' if points > 0 else 'olib tashlandi'
+        
+        data_manager.data['users'][user_id_str]['points_history'].append({
+            'points': points,
+            'reason': f"Admin tomonidan {operation_text}",
+            'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'type': operation_type
+        })
+        
+        await data_manager.save_data()
+        
+        # Foydalanuvchiga xabar yuborish
+        try:
+            if points > 0:
+                message_text = f"""
+🎉 *TABRIKLAYMIZ!*
+
+💰 Admin tomonidan sizga {points} ball qo'shildi!
+📊 Eski ball: {old_points}
+🎯 Yangi ball: {new_points}
+
+🎟️ Endi siz kuponlar olishingiz mumkin!
+"""
+            else:
+                message_text = f"""
+⚠️ *OGOHLANTIRISH*
+
+💰 Admin tomonidan sizning hisobingizdan {abs(points)} ball olib tashlandi!
+📊 Eski ball: {old_points}
+🎯 Yangi ball: {new_points}
+
+📞 Sababni admin bilan bog'lanib bilib oling.
+"""
+            
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=message_text,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
+        
         await query.edit_message_text(
-            f"✅ *Kupon o'chirildi!*\n\n"
-            f"🏆 {coupon_to_delete['teams']}\n"
-            f"🎯 {coupon_to_delete['prediction']}\n"
-            f"🆔 ID: {coupon_id}",
+            f"✅ *Ball {operation_text}!*\n\n"
+            f"👤 Foydalanuvchi: {data_manager.data['users'][user_id_str].get('name', 'Noma\'lum')}\n"
+            f"💰 O'zgartirish: {points} ball\n"
+            f"📊 Eski ball: {old_points}\n"
+            f"🎯 Yangi ball: {new_points}",
             parse_mode=ParseMode.MARKDOWN
         )
         
     except Exception as e:
-        logger.error(f"delete_coupon da xato: {e}")
-        await query.edit_message_text("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
+        logger.error(f"add_user_points da xato: {e}")
+        await query.edit_message_text(f"❌ Xatolik: {str(e)}")
 
 async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin xabarlarini qayta ishlash"""
@@ -1293,93 +1671,263 @@ async def handle_admin_message(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
         
+        # Kupon tahrirlash
+        elif message_text.startswith('edit_'):
+            parts = message_text.replace('edit_', '').split(' ', 1)
+            if len(parts) == 2:
+                coupon_id = parts[0].strip()
+                edit_data = parts[1].strip()
+                
+                if '|' in edit_data:
+                    edit_parts = edit_data.split('|')
+                    
+                    if len(edit_parts) >= 9:
+                        # Kuponi topish
+                        coupon_found = False
+                        for coupon in data_manager.data['coupons']['available']:
+                            if coupon['id'] == coupon_id:
+                                coupon['time'] = edit_parts[0].strip()
+                                coupon['league'] = edit_parts[1].strip()
+                                coupon['teams'] = edit_parts[2].strip()
+                                coupon['prediction'] = edit_parts[3].strip()
+                                coupon['odds'] = edit_parts[4].strip()
+                                coupon['confidence'] = edit_parts[5].strip()
+                                coupon['codes']['1xbet'] = edit_parts[6].strip()
+                                coupon['codes']['melbet'] = edit_parts[7].strip()
+                                coupon['codes']['dbbet'] = edit_parts[8].strip()
+                                coupon['edited_date'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                coupon['edited_by'] = user_id
+                                
+                                coupon_found = True
+                                break
+                        
+                        if coupon_found:
+                            await data_manager.save_data()
+                            await message.reply_text(
+                                f"✅ *Kupon tahrirlandi!*\n\n"
+                                f"🆔 ID: {coupon_id}\n"
+                                f"✏️ Tahrirlash vaqti: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                                parse_mode=ParseMode.MARKDOWN
+                            )
+                        else:
+                            await message.reply_text(f"❌ Kupon topilmadi: {coupon_id}")
+                        return
+        
+        # Sozlamalarni o'zgartirish
+        elif any(message_text.startswith(setting) for setting in [
+            'welcome_points', 'daily_bonus', 'referral_points', 
+            'coupon_price', 'min_exchange_points', 'exchange_rate'
+        ]):
+            parts = message_text.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                setting_name = parts[0]
+                new_value = int(parts[1])
+                
+                if setting_name in data_manager.data['settings']:
+                    old_value = data_manager.data['settings'][setting_name]
+                    data_manager.data['settings'][setting_name] = new_value
+                    await data_manager.save_data()
+                    
+                    setting_names = {
+                        'welcome_points': 'Yangi foydalanuvchi bonus',
+                        'daily_bonus': 'Kunlik bonus',
+                        'referral_points': 'Referal bonus',
+                        'coupon_price': 'Kupon narxi',
+                        'min_exchange_points': 'Minimal almashtirish',
+                        'exchange_rate': 'Almashinuv kursi'
+                    }
+                    
+                    await message.reply_text(
+                        f"✅ *Sozlama o'zgartirildi!*\n\n"
+                        f"⚙️ Sozlama: {setting_names.get(setting_name, setting_name)}\n"
+                        f"📊 Eski qiymat: {old_value}\n"
+                        f"🎯 Yangi qiymat: {new_value}",
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                    return
+        
         # Ball qo'shish (format: user_id points)
         elif ' ' in message_text and message_text.split()[0].isdigit():
             parts = message_text.split()
-            if len(parts) == 2 and parts[1].isdigit():
+            if len(parts) == 2 and (parts[1].isdigit() or (parts[1].startswith('-') and parts[1][1:].isdigit())):
                 target_user_id = int(parts[0])
                 points = int(parts[1])
                 
                 if str(target_user_id) in data_manager.data['users']:
-                    # Ballarni qo'shish
-                    data_manager.data['users'][str(target_user_id)]['points'] += points
-                    data_manager.data['stats']['total_points_given'] += points
-                    
-                    # Tarixga yozish
-                    if 'points_history' not in data_manager.data['users'][str(target_user_id)]:
-                        data_manager.data['users'][str(target_user_id)]['points_history'] = []
-                    
-                    data_manager.data['users'][str(target_user_id)]['points_history'].append({
-                        'points': points,
-                        'reason': f"Admin tomonidan qo'shildi",
-                        'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        'type': 'admin_add'
-                    })
-                    
-                    await data_manager.save_data()
-                    
-                    await message.reply_text(
-                        f"✅ *Ball qo'shildi!*\n\n"
-                        f"👤 Foydalanuvchi: {data_manager.data['users'][str(target_user_id)].get('name', 'Noma\'lum')}\n"
-                        f"💰 Qo'shilgan ball: {points}\n"
-                        f"🎯 Jami ball: {data_manager.data['users'][str(target_user_id)]['points']}",
-                        parse_mode=ParseMode.MARKDOWN
-                    )
+                    await add_user_points_admin(message, target_user_id, points, context)
                 else:
                     await message.reply_text(f"❌ Foydalanuvchi topilmadi: {target_user_id}")
                 return
         
         # Reklama yuborish
         else:
-            if data_manager.data['admin'].get('broadcast_lock', False):
-                await message.reply_text("⚠️ Reklama hozir jo'natilmoqda. Iltimos, biroz kuting.")
-                return
-            
-            data_manager.data['admin']['broadcast_lock'] = True
-            await data_manager.save_data()
-            
-            total_users = len(data_manager.data['users'])
-            successful = 0
-            failed = 0
-            
-            progress_msg = await message.reply_text(f"📤 Xabar yuborilmoqda... 0/{total_users}")
-            
-            for i, user_id_str in enumerate(data_manager.data['users'], 1):
-                try:
-                    await context.bot.send_message(
-                        chat_id=int(user_id_str),
-                        text=message_text,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                    successful += 1
-                    
-                    if i % 10 == 0 or i == total_users:
-                        await progress_msg.edit_text(f"📤 Xabar yuborilmoqda... {i}/{total_users}\n✅ Muvaffaqiyatli: {successful}")
-                        
-                except Exception as e:
-                    logger.error(f"Foydalanuvchiga xabar yuborishda xato {user_id_str}: {e}")
-                    failed += 1
-                    continue
-            
-            # Oxirgi reklama vaqtini yangilash
-            data_manager.data['stats']['last_broadcast'] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            data_manager.data['admin']['broadcast_lock'] = False
-            await data_manager.save_data()
-            
-            await progress_msg.edit_text(
-                f"📊 *Reklama yuborildi!*\n\n"
-                f"👥 Jami foydalanuvchi: {total_users} ta\n"
-                f"✅ Muvaffaqiyatli: {successful} ta\n"
-                f"❌ Xatolik: {failed} ta\n"
-                f"📅 Vaqt: {data_manager.data['stats']['last_broadcast']}",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            await send_broadcast(message, message_text, context)
             
     except Exception as e:
         logger.error(f"handle_admin_message da xato: {e}")
+        await update.message.reply_text(f"❌ Xatolik yuz berdi: {str(e)}")
+
+async def add_user_points_admin(message, user_id, points, context):
+    """Admin uchun ball qo'shish funksiyasi"""
+    try:
+        user_id_str = str(user_id)
+        
+        if user_id_str not in data_manager.data['users']:
+            await message.reply_text(f"❌ Foydalanuvchi topilmadi: {user_id}")
+            return
+        
+        # Ballarni qo'shish
+        old_points = data_manager.data['users'][user_id_str]['points']
+        new_points = old_points + points
+        if new_points < 0:
+            new_points = 0
+        
+        data_manager.data['users'][user_id_str]['points'] = new_points
+        
+        if points > 0:
+            data_manager.data['stats']['total_points_given'] += points
+        
+        # Tarixga yozish
+        if 'points_history' not in data_manager.data['users'][user_id_str]:
+            data_manager.data['users'][user_id_str]['points_history'] = []
+        
+        operation_type = 'admin_add' if points > 0 else 'admin_remove'
+        operation_text = 'qo\'shildi' if points > 0 else 'olib tashlandi'
+        
+        data_manager.data['users'][user_id_str]['points_history'].append({
+            'points': points,
+            'reason': f"Admin tomonidan {operation_text}",
+            'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'type': operation_type
+        })
+        
+        await data_manager.save_data()
+        
+        # Foydalanuvchiga xabar yuborish
+        try:
+            if points > 0:
+                message_text = f"""
+🎉 *TABRIKLAYMIZ!*
+
+💰 Admin tomonidan sizga {points} ball qo'shildi!
+📊 Eski ball: {old_points}
+🎯 Yangi ball: {new_points}
+
+🎟️ Endi siz kuponlar olishingiz mumkin!
+"""
+            else:
+                message_text = f"""
+⚠️ *OGOHLANTIRISH*
+
+💰 Admin tomonidan sizning hisobingizdan {abs(points)} ball olib tashlandi!
+📊 Eski ball: {old_points}
+🎯 Yangi ball: {new_points}
+
+📞 Sababni admin bilan bog'lanib bilib oling.
+"""
+            
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=message_text,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Foydalanuvchiga xabar yuborishda xato: {e}")
+        
+        await message.reply_text(
+            f"✅ *Ball {operation_text}!*\n\n"
+            f"👤 Foydalanuvchi: {data_manager.data['users'][user_id_str].get('name', 'Noma\'lum')}\n"
+            f"💰 O'zgartirish: {points} ball\n"
+            f"📊 Eski ball: {old_points}\n"
+            f"🎯 Yangi ball: {new_points}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+    except Exception as e:
+        logger.error(f"add_user_points_admin da xato: {e}")
+        await message.reply_text(f"❌ Xatolik: {str(e)}")
+
+async def send_broadcast(message, message_text, context):
+    """Reklama yuborish"""
+    try:
+        if data_manager.data['admin'].get('broadcast_lock', False):
+            await message.reply_text("⚠️ Reklama hozir jo'natilmoqda. Iltimos, biroz kuting.")
+            return
+        
+        # Lock qo'yish
+        data_manager.data['admin']['broadcast_lock'] = True
+        await data_manager.save_data()
+        
+        total_users = len(data_manager.data['users'])
+        successful = 0
+        failed = 0
+        blocked = 0
+        
+        progress_msg = await message.reply_text(f"📤 Xabar yuborilmoqda... 0/{total_users}")
+        
+        # Barcha foydalanuvchilarga yuborish
+        for i, user_id_str in enumerate(data_manager.data['users'], 1):
+            try:
+                await context.bot.send_message(
+                    chat_id=int(user_id_str),
+                    text=message_text,
+                    parse_mode=ParseMode.MARKDOWN
+                )
+                successful += 1
+                
+                # Har 30 ta foydalanuvchiga progress yangilash
+                if i % 30 == 0 or i == total_users:
+                    try:
+                        await progress_msg.edit_text(
+                            f"📤 Xabar yuborilmoqda... {i}/{total_users}\n"
+                            f"✅ Muvaffaqiyatli: {successful}\n"
+                            f"❌ Xatolik: {failed}\n"
+                            f"🚫 Bloklangan: {blocked}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Progress yangilashda xato: {e}")
+                        
+                # Kichik kechikish qo'shish (rate limit uchun)
+                if i % 20 == 0:
+                    await asyncio.sleep(1)
+                    
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "blocked" in error_msg or "bot was blocked" in error_msg:
+                    blocked += 1
+                else:
+                    failed += 1
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xato {user_id_str}: {e}")
+                continue
+        
+        # Oxirgi reklama vaqtini yangilash
+        data_manager.data['admin']['last_broadcast'] = datetime.now().strftime("%Y-%m-%d %H:%M")
         data_manager.data['admin']['broadcast_lock'] = False
         await data_manager.save_data()
-        await update.message.reply_text(f"❌ Xatolik yuz berdi: {str(e)}")
+        
+        final_text = f"""
+📊 *REKLAMA YUBORILDI!*
+
+👥 Jami foydalanuvchi: {total_users} ta
+✅ Muvaffaqiyatli: {successful} ta
+❌ Xatolik: {failed} ta
+🚫 Bloklangan: {blocked} ta
+📅 Vaqt: {data_manager.data['admin']['last_broadcast']}
+
+📋 *Xabar matni:*
+{message_text[:500]}...
+"""
+        
+        if len(message_text) > 500:
+            final_text += f"\n\n... va yana {len(message_text) - 500} belgi"
+        
+        await progress_msg.edit_text(final_text, parse_mode=ParseMode.MARKDOWN)
+        
+    except Exception as e:
+        logger.error(f"send_broadcast da xato: {e}")
+        data_manager.data['admin']['broadcast_lock'] = False
+        await data_manager.save_data()
+        await message.reply_text(f"❌ Reklama yuborishda xatolik: {str(e)}")
 
 async def handle_regular_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Oddiy foydalanuvchi xabarlarini qayta ishlash"""
@@ -1421,15 +1969,17 @@ def main():
         print(f"🤖 Admin ID: {ADMIN_ID}")
         print(f"📊 Jami foydalanuvchilar: {len(data_manager.data['users'])} ta")
         print(f"💰 Jami ballar: {sum(user.get('points', 0) for user in data_manager.data['users'].values())} ball")
+        print(f"🎟️ Mavjud kuponlar: {len(data_manager.data['coupons']['available'])} ta")
+        print(f"🗄️ Arxiv kuponlar: {len(data_manager.data['coupons'].get('archive', []))} ta")
         print("=" * 50)
-        print("🎯 MUAMMOLAR TUZATILDI:")
-        print("   • ✅ Admin panel to'liq ishlaydi")
-        print("   • ✅ DataManager class bilan ma'lumotlar boshqaruvi")
-        print("   • ✅ Asynchronous saqlash (async/await)")
-        print("   • ✅ Konkurensiya muammolari hal qilindi")
-        print("   • ✅ Foydalanuvchiga ball qo'shish funksiyasi")
-        print("   • ✅ Reklama yuborishda lock tizimi")
-        print("   • ✅ Barcha callback tugmalari ishlaydi")
+        print("✅ YANGI FUNKSIYALAR:")
+        print("   • 📝 Kuponlarni tahrirlash (edit_coupon_id yangi_ma'lumotlar)")
+        print("   • 🗄️ Kuponlarni arxivlash/qayta tiklash")
+        print("   • ⚙️ Sozlamalarni real vaqtda o'zgartirish")
+        print("   • 📊 To'liq statistika paneli")
+        print("   • 📢 Reklama yuborishda progress ko'rsatish")
+        print("   • 🚫 Bloklangan foydalanuvchilarni hisoblash")
+        print("   • ⏸️ Rate limit bilan reklama yuborish")
         print("=" * 50)
         print("✅ Bot ishlayapti. CTRL+C tugmasi bilan to'xtating.")
         print("=" * 50)
