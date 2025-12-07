@@ -11,7 +11,7 @@ from telegram.constants import ParseMode
 
 # Bot tokeni (Environment variable dan olish yaxshiroq)
 TOKEN = os.getenv("BOT_TOKEN", "8573896084:AAFHdhX8AH7hxThx972yKEXpQZNSphLWqUY")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "7081746531"))
+ADMIN_ID = int(os.getenv("ADMIN_ID", "6935090105"))
 
 # Ma'lumotlarni saqlash fayli
 DATA_FILE = "data.json"
